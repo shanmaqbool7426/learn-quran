@@ -289,6 +289,64 @@ export async function fetchJuzAyahs(juzNumber: number): Promise<Array<{ surah: A
   }
 }
 
+// ── Full-text Quran search ────────────────────────────────────────────────────
+
+export interface SearchResult {
+  surahNumber: number;
+  surahEnglishName: string;
+  surahArabicName: string;
+  surahTranslation: string;
+  ayahNumber: number;
+  arabicText: string;
+  translationText: string;
+  globalNumber: number;
+}
+
+export async function searchQuran(
+  keyword: string,
+  edition: string = "en.asad"
+): Promise<SearchResult[]> {
+  if (!keyword.trim()) return [];
+  try {
+    const encoded = encodeURIComponent(keyword.trim());
+    const res = await fetch(`${BASE}/search/${encoded}/all/${edition}`);
+    if (!res.ok) return [];
+    const json = await res.json() as {
+      data?: {
+        matches?: Array<{
+          number?: number;
+          text?: string;
+          surah?: {
+            number?: number;
+            name?: string;
+            englishName?: string;
+            englishNameTranslation?: string;
+          };
+          numberInSurah?: number;
+        }>
+      }
+    };
+    const matches = json?.data?.matches ?? [];
+    const results: SearchResult[] = [];
+    for (const m of matches) {
+      if (!m.surah?.number || !m.numberInSurah) continue;
+      results.push({
+        surahNumber: m.surah.number,
+        surahEnglishName: m.surah.englishName ?? "",
+        surahArabicName: m.surah.name ?? "",
+        surahTranslation: m.surah.englishNameTranslation ?? "",
+        ayahNumber: m.numberInSurah,
+        arabicText: "",
+        translationText: m.text ?? "",
+        globalNumber: m.number ?? 0,
+      });
+    }
+    return results.slice(0, 50);
+  } catch {
+    return [];
+  }
+}
+
 export async function fetchRandomAyah(surahId: number = 2): Promise<{
   arabic: string;
   translation: string;

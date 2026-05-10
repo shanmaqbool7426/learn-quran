@@ -187,12 +187,21 @@ export default function QuranScreen() {
               {surahs ? `${surahs.length} Surahs • 30 Juz • 6,236 Ayahs` : "Loading..."}
             </Text>
           </View>
-          {isLoading && <ActivityIndicator color={colors.primary} />}
-          {isError && (
-            <TouchableOpacity onPress={() => refetch()}>
-              <Feather name="refresh-cw" size={18} color={colors.primary} />
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            {isLoading && <ActivityIndicator color={colors.primary} />}
+            {isError && (
+              <TouchableOpacity onPress={() => refetch()}>
+                <Feather name="refresh-cw" size={18} color={colors.primary} />
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity
+              style={[styles.searchIconBtn, { backgroundColor: colors.secondary, borderColor: colors.border }]}
+              onPress={() => router.push("/search" as any)}
+            >
+              <Feather name="search" size={16} color={colors.primary} />
+              <Text style={[styles.searchIconBtnText, { color: colors.primary }]}>Search Ayahs</Text>
             </TouchableOpacity>
-          )}
+          </View>
         </View>
 
         {activeTab !== 1 && (
@@ -280,6 +289,8 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 14 },
   title: { fontSize: 26, fontFamily: "Inter_700Bold" },
   subtitle: { fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 2 },
+  searchIconBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, borderWidth: 1 },
+  searchIconBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
   searchBox: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, borderWidth: 1, marginBottom: 12 },
   searchInput: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular" },
   tabRow: { flexDirection: "row", borderRadius: 10, padding: 4 },

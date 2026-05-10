@@ -1,4 +1,5 @@
 import { Feather } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import React, { useState } from "react";
@@ -9,10 +10,10 @@ import { SURAHS } from "@/constants/quranData";
 import { useColors } from "@/hooks/useColors";
 
 const PLANS = [
-  { id: "1", name: "Juz Amma", surahs: 37, difficulty: "Beginner", duration: "30 days", color: "#22C55E" },
-  { id: "2", name: "Short Surahs", surahs: 10, difficulty: "Beginner", duration: "14 days", color: "#3B82F6" },
-  { id: "3", name: "Al-Fatiha", surahs: 1, difficulty: "Starter", duration: "3 days", color: "#8B5CF6" },
-  { id: "4", name: "Custom Plan", surahs: 0, difficulty: "Custom", duration: "Flexible", color: "#C8972A" },
+  { id: "1", name: "Juz Amma", surahs: 37, difficulty: "Beginner", duration: "30 days", color: "#22C55E", startSurah: 78 },
+  { id: "2", name: "Short Surahs", surahs: 10, difficulty: "Beginner", duration: "14 days", color: "#3B82F6", startSurah: 112 },
+  { id: "3", name: "Al-Fatiha", surahs: 1, difficulty: "Starter", duration: "3 days", color: "#8B5CF6", startSurah: 1 },
+  { id: "4", name: "Custom Plan", surahs: 0, difficulty: "Custom", duration: "Flexible", color: "#C8972A", startSurah: null },
 ];
 
 export default function MemorizeScreen() {
@@ -69,7 +70,18 @@ export default function MemorizeScreen() {
           <Text style={[styles.missionTrans, { color: colors.mutedForeground }]}>
             Al-Fatiha • Ayah 6 — Memorize and recite 3 times
           </Text>
-          <TouchableOpacity style={[styles.missionBtn, { backgroundColor: colors.primary }]}>
+          <TouchableOpacity
+            style={[styles.missionBtn, { backgroundColor: colors.primary }]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              const plan = PLANS.find(p => p.id === selectedPlan);
+              if (plan?.startSurah) {
+                router.push(`/surah/${plan.startSurah}?hifz=true` as any);
+              } else {
+                router.push("/(tabs)/quran" as any);
+              }
+            }}
+          >
             <Feather name="play" size={14} color="#FFFFFF" />
             <Text style={styles.missionBtnText}>Start Session</Text>
           </TouchableOpacity>

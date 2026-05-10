@@ -27,7 +27,7 @@ import { AUDIO_CDN, TRANSLATION_OPTIONS } from "@/services/quranApi";
 const FONT_SIZES = [18, 20, 22, 24, 26, 28, 32];
 
 export default function SurahScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, hifz } = useLocalSearchParams<{ id: string; hifz?: string }>();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { setLastRead, fontSize, setFontSize, translationLang, setTranslationLang } = useApp();
@@ -36,7 +36,7 @@ export default function SurahScreen() {
   const [showTranslation, setShowTranslation] = useState(true);
   const [showTranslit, setShowTranslit] = useState(false);
   const [showWordByWord, setShowWordByWord] = useState(false);
-  const [hifzMode, setHifzMode] = useState(false);
+  const [hifzMode, setHifzMode] = useState(hifz === "true");
   const [hifzDifficulty, setHifzDifficulty] = useState<HifzDifficulty>("medium");
   const [hifzModalVisible, setHifzModalVisible] = useState(false);
   const [reciter, setReciter] = useState<Reciter>(DEFAULT_RECITER);
