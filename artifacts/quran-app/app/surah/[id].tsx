@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import AudioPlayer from "@/components/AudioPlayer";
 import AyahCard from "@/components/AyahCard";
+import { HifzDifficulty } from "@/components/HifzView";
 import { DEFAULT_RECITER, Reciter } from "@/constants/reciters";
 import { useApp } from "@/context/AppContext";
 import { useQuranSurah } from "@/hooks/useQuranSurah";
@@ -35,6 +36,9 @@ export default function SurahScreen() {
   const [showTranslation, setShowTranslation] = useState(true);
   const [showTranslit, setShowTranslit] = useState(false);
   const [showWordByWord, setShowWordByWord] = useState(false);
+  const [hifzMode, setHifzMode] = useState(false);
+  const [hifzDifficulty, setHifzDifficulty] = useState<HifzDifficulty>("medium");
+  const [hifzModalVisible, setHifzModalVisible] = useState(false);
   const [reciter, setReciter] = useState<Reciter>(DEFAULT_RECITER);
   const [currentAyahIdx, setCurrentAyahIdx] = useState(0);
   const [playingIdx, setPlayingIdx] = useState<number | null>(null);
@@ -132,6 +136,29 @@ export default function SurahScreen() {
           <TouchableOpacity
             style={[
               styles.controlBtn,
+              {
+                flexDirection: "row",
+                gap: 5,
+                backgroundColor: hifzMode ? "#F59E0B" : colors.muted,
+              },
+            ]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              if (hifzMode) {
+                setHifzMode(false);
+              } else {
+                setHifzModalVisible(true);
+              }
+            }}
+          >
+            <Feather name="eye-off" size={12} color={hifzMode ? "#FFFFFF" : colors.mutedForeground} />
+            <Text style={[styles.controlText, { color: hifzMode ? "#FFFFFF" : colors.mutedForeground }]}>
+              {hifzMode ? "Exit Hifz" : "Hifz"}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.controlBtn,
               { backgroundColor: colors.muted, flexDirection: "row", gap: 4 },
             ]}
             onPress={() => setLangModalVisible(true)}
@@ -159,6 +186,16 @@ export default function SurahScreen() {
             <Feather name="grid" size={13} color={colors.primary} />
             <Text style={[styles.wbwBannerText, { color: colors.primary }]}>
               Word-by-Word mode — tap any ayah's grid icon or use the button below the Arabic text
+            </Text>
+          </View>
+        )}
+
+        {/* Hifz mode banner */}
+        {hifzMode && (
+          <View style={[styles.wbwBanner, { backgroundColor: "#F59E0B12", borderColor: "#F59E0B30" }]}>
+            <Feather name="eye-off" size={13} color="#F59E0B" />
+            <Text style={[styles.wbwBannerText, { color: "#F59E0B" }]}>
+              Hifz Mode ({hifzDifficulty}) — tap hidden words to reveal them. Tap "Exit Hifz" to return to normal reading.
             </Text>
           </View>
         )}
@@ -318,6 +355,8 @@ export default function SurahScreen() {
               showTranslation={showTranslation}
               showTransliteration={showTranslit}
               showWordByWord={showWordByWord}
+              hifzMode={hifzMode}
+              hifzDifficulty={hifzDifficulty}
               isPlaying={playingIdx === idx}
               fontSize={fontSize}
               playbackProgress={
@@ -463,6 +502,83 @@ export default function SurahScreen() {
                 onPress={() => setFontModalVisible(false)}
               >
                 <Text style={styles.doneBtnText}>Done</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Hifz difficulty modal ── */}
+      <Modal
+        visible={hifzModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setHifzModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalSheet, { backgroundColor: colors.background }]}>
+            <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
+            <View style={styles.modalHeaderRow}>
+              <View>
+                <Text style={[styles.modalTitle, { color: colors.foreground }]}>
+                  Hifz Mode
+                </Text>
+                <Text style={[{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.mutedForeground, marginTop: 2 }]}>
+                  Choose how many words to hide
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setHifzModalVisible(false)}>
+                <Feather name="x" size={22} color={colors.mutedForeground} />
+              </TouchableOpacity>
+            </View>
+            <View style={{ padding: 20, gap: 12 }}>
+              {(
+                [
+                  { key: "easy" as HifzDifficulty, label: "Easy", desc: "Every other word hidden — good for beginners", color: "#10B981", icon: "😊" },
+                  { key: "medium" as HifzDifficulty, label: "Medium", desc: "Most words hidden — challenge yourself", color: "#F59E0B", icon: "🧠" },
+                  { key: "hard" as HifzDifficulty, label: "Hard", desc: "All words hidden — full recall test", color: "#EF4444", icon: "🔥" },
+                ] as const
+              ).map((opt) => (
+                <TouchableOpacity
+                  key={opt.key}
+                  style={[
+                    {
+                      flexDirection: "row" as const,
+                      alignItems: "center" as const,
+                      gap: 14,
+                      padding: 16,
+                      borderRadius: 14,
+                      borderWidth: 1.5,
+                      backgroundColor: hifzDifficulty === opt.key ? opt.color + "15" : colors.card,
+                      borderColor: hifzDifficulty === opt.key ? opt.color : colors.border,
+                    },
+                  ]}
+                  onPress={() => setHifzDifficulty(opt.key)}
+                >
+                  <Text style={{ fontSize: 26 }}>{opt.icon}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: hifzDifficulty === opt.key ? opt.color : colors.foreground }}>
+                      {opt.label}
+                    </Text>
+                    <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.mutedForeground, marginTop: 2 }}>
+                      {opt.desc}
+                    </Text>
+                  </View>
+                  {hifzDifficulty === opt.key && (
+                    <Feather name="check-circle" size={20} color={opt.color} />
+                  )}
+                </TouchableOpacity>
+              ))}
+
+              <TouchableOpacity
+                style={[styles.doneBtn, { backgroundColor: "#F59E0B", marginTop: 8 }]}
+                onPress={() => {
+                  setHifzModalVisible(false);
+                  setHifzMode(true);
+                }}
+              >
+                <Feather name="eye-off" size={16} color="#FFFFFF" />
+                <Text style={[styles.doneBtnText, { marginLeft: 8 }]}>Start Hifz Mode</Text>
               </TouchableOpacity>
             </View>
           </View>

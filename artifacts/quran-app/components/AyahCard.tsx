@@ -12,6 +12,7 @@ import {
   View,
 } from "react-native";
 
+import HifzView, { HifzDifficulty } from "@/components/HifzView";
 import WordByWordView from "@/components/WordByWordView";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
@@ -31,6 +32,8 @@ interface Props {
   showTranslation?: boolean;
   showTransliteration?: boolean;
   showWordByWord?: boolean;
+  hifzMode?: boolean;
+  hifzDifficulty?: HifzDifficulty;
   isPlaying?: boolean;
   isLoading?: boolean;
   onPlayPress?: () => void;
@@ -46,6 +49,8 @@ export default function AyahCard({
   showTranslation = true,
   showTransliteration = false,
   showWordByWord = false,
+  hifzMode = false,
+  hifzDifficulty = "medium",
   isPlaying = false,
   isLoading = false,
   onPlayPress,
@@ -225,15 +230,38 @@ export default function AyahCard({
           </View>
         </View>
 
-        {/* ── Arabic text ── */}
-        <Text
-          style={[
-            styles.arabic,
-            { color: colors.foreground, fontSize },
-          ]}
-        >
-          {ayah.arabic}
-        </Text>
+        {/* ── Hifz mode (replaces Arabic text + translation) ── */}
+        {hifzMode ? (
+          <View
+            style={[
+              styles.hifzContainer,
+              { backgroundColor: colors.background, borderColor: "#F59E0B30" },
+            ]}
+          >
+            <HifzView
+              arabic={ayah.arabic}
+              translation={ayah.translation}
+              ayahNumber={ayah.number}
+              surahId={surahId}
+              surahName={surahName}
+              fontSize={fontSize}
+              difficulty={hifzDifficulty}
+              showTranslation={showTranslation}
+            />
+          </View>
+        ) : (
+          <>
+            {/* ── Arabic text ── */}
+            <Text
+              style={[
+                styles.arabic,
+                { color: colors.foreground, fontSize },
+              ]}
+            >
+              {ayah.arabic}
+            </Text>
+          </>
+        )}
 
         {/* ── Word-by-word overlay ── */}
         {(showWordByWord || wbwExpanded) && (
@@ -499,6 +527,14 @@ const styles = StyleSheet.create({
     fontWeight: "400",
     writingDirection: "rtl",
     marginBottom: 4,
+  },
+  hifzContainer: {
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 14,
+    marginTop: 4,
+    marginBottom: 4,
+    gap: 10,
   },
   wbwContainer: {
     borderWidth: 1,
