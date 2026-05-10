@@ -1,6 +1,14 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 
+import {
+  DEFAULT_NOTIF_PREFS,
+  NotificationPrefs,
+  scheduleDailyReminder,
+  cancelDailyReminder,
+} from "@/services/notificationService";
+import { DAILY_AYAHS } from "@/constants/quranData";
+
 interface UserProgress {
   streak: number;
   xp: number;
@@ -29,6 +37,7 @@ export interface AppContextType {
   dailyGoalMinutes: number;
   sessionMinutes: number;
   hifzSessions: HifzSession[];
+  notificationPrefs: NotificationPrefs;
   addXP: (amount: number) => void;
   toggleBookmark: (ayahId: number) => void;
   setLastRead: (surahId: number, ayah: number) => void;
@@ -42,6 +51,7 @@ export interface AppContextType {
   addSessionMinutes: (mins: number) => void;
   setDailyGoalMinutes: (mins: number) => void;
   recordHifzSession: (surahId: number, surahName: string, ayahNumber: number) => void;
+  setNotificationPrefs: (prefs: NotificationPrefs) => void;
 }
 
 const defaultProgress: UserProgress = {
@@ -67,6 +77,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [dailyGoalMinutes, setDailyGoalMinutesState] = useState(30);
   const [sessionMinutes, setSessionMinutes] = useState(0);
   const [hifzSessions, setHifzSessions] = useState<HifzSession[]>([]);
+  const [notificationPrefs, setNotificationPrefsState] = useState<NotificationPrefs>(DEFAULT_NOTIF_PREFS);
 
   useEffect(() => {
     loadData();
@@ -77,7 +88,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const [
         savedProgress, savedBookmarks, savedLastRead, savedDark,
         savedTasbeeh, savedFontSize, savedLang, savedName, savedGoal,
-        savedHifzSessions,
+        savedHifzSessions, savedNotifPrefs,
       ] = await Promise.all([
         AsyncStorage.getItem("progress"),
         AsyncStorage.getItem("bookmarks"),
@@ -89,6 +100,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         AsyncStorage.getItem("userName"),
         AsyncStorage.getItem("dailyGoalMinutes"),
         AsyncStorage.getItem("hifzSessions"),
+        AsyncStorage.getItem("notificationPrefs"),
       ]);
       if (savedProgress) setProgress(JSON.parse(savedProgress));
       if (savedBookmarks) setBookmarks(JSON.parse(savedBookmarks));
@@ -100,6 +112,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (savedName) setUserNameState(JSON.parse(savedName));
       if (savedGoal) setDailyGoalMinutesState(JSON.parse(savedGoal));
       if (savedHifzSessions) setHifzSessions(JSON.parse(savedHifzSessions));
+      if (savedNotifPrefs) setNotificationPrefsState(JSON.parse(savedNotifPrefs));
     } catch {}
   };
 
@@ -206,6 +219,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  const setNotificationPrefs = useCallback((prefs: NotificationPrefs) => {
+    setNotificationPrefsState(prefs);
+    AsyncStorage.setItem("notificationPrefs", JSON.stringify(prefs));
+
+    const todayAyahIdx = new Date().getDate() % DAILY_AYAHS.length;
+    const todayAyah = DAILY_AYAHS[todayAyahIdx];
+    const notifTitle = `🌙 Daily Ayah — ${todayAyah?.reference ?? "Al-Quran"}`;
+    const notifBody = `"${todayAyah?.translation ?? "Guide us to the straight path"}"`;
+
+    if (prefs.enabled) {
+      scheduleDailyReminder(prefs, notifTitle, notifBody).catch(() => {});
+    } else {
+      cancelDailyReminder().catch(() => {});
+    }
+  }, []);
+
   return (
     <AppContext.Provider
       value={{
@@ -220,6 +249,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         dailyGoalMinutes,
         sessionMinutes,
         hifzSessions,
+        notificationPrefs,
         addXP,
         toggleBookmark,
         setLastRead,
@@ -233,6 +263,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         addSessionMinutes,
         setDailyGoalMinutes,
         recordHifzSession,
+        setNotificationPrefs,
       }}
     >
       {children}
