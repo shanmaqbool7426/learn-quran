@@ -1,0 +1,302 @@
+Build a premium AI-powered Quran Learning mobile app using React Native Expo + TypeScript.
+
+The app should be more modern, beautiful, intelligent, spiritual, and user-friendly than existing Quran learning apps.
+
+The app should combine:
+- Quran learning
+- AI recitation correction
+- Tajweed guidance
+- Prayer tools
+- Islamic lifestyle tools
+- Community features
+- Personalized learning
+- Clean minimal Islamic UI
+
+====================================
+APP DESIGN STYLE
+====================================
+
+- Elegant Islamic aesthetic
+- Minimal modern UI
+- Soft green, emerald, gold, white gradients
+- Glassmorphism effects
+- Beautiful Arabic typography
+- Smooth calming animations
+- Peaceful user experience
+- Dark/light mode
+- Premium app-quality design
+- Soft shadows and rounded cards
+- Smooth page transitions
+- Calm spiritual feeling
+
+Inspired by:
+- Duolingo simplicity
+- Calm app aesthetics
+- Quran.com clarity
+- Modern Islamic design systems
+
+====================================
+MAIN FEATURES
+====================================
+
+1. AUTHENTICATION
+- Email login
+- Google login
+- Apple login
+- Guest mode
+- Phone OTP login
+
+====================================
+2. HOME DASHBOARD
+====================================
+
+- Continue learning section
+- Daily Quran goals
+- Prayer times
+- Streak tracker
+- AI recommendations
+- Daily ayah
+- Islamic reminders
+- Recent recitations
+- Learning progress
+- Smart widgets
+- Daily duas
+- Ramadan mode
+- Beautiful Quran quote cards
+
+====================================
+3. AI QURAN RECITATION
+====================================
+
+- Real-time recitation analysis
+- AI Tajweed correction
+- Pronunciation feedback
+- Word-by-word correction
+- Voice waveform analysis
+- Mistake highlighting
+- Audio comparison with Qari
+- Recitation scoring
+- Slow playback learning
+- Accent correction
+- Listening mode
+- Memorization mode
+- Repeat-after-Qari mode
+
+AI should detect:
+- Pronunciation mistakes
+- Missing harakat
+- Tajweed issues
+- Incorrect pauses
+- Letter articulation errors
+
+====================================
+4. QURAN READING EXPERIENCE
+====================================
+
+- Beautiful Arabic font
+- Multiple Quran fonts
+- Word-by-word translation
+- Transliteration
+- Tafsir integration
+- Audio playback
+- Bookmark ayahs
+- Highlight verses
+- Notes system
+- Reading plans
+- Night reading mode
+- Adjustable font size
+- Multiple reciters
+- Offline download
+
+====================================
+5. AI QAIDA LEARNING
+====================================
+
+- Interactive Arabic alphabet learning
+- Pronunciation trainer
+- AI listening tests
+- Kids mode
+- Step-by-step lessons
+- Voice recognition
+- Smart progress tracking
+- Mini quizzes
+- Visual learning animations
+- Writing practice
+
+====================================
+6. MEMORIZATION SYSTEM
+====================================
+
+- Hifz planner
+- Revision scheduler
+- Smart reminders
+- AI memorization coach
+- Mistake tracking
+- Memorization streaks
+- Audio repetition loops
+- Verse testing mode
+- Recall challenge
+
+====================================
+7. ISLAMIC TOOLS
+====================================
+
+- Prayer times
+- Azan notifications
+- Qibla compass
+- Tasbeeh counter
+- Islamic calendar
+- Ramadan tracker
+- Dua collection
+- Dhikr reminders
+- Zakat calculator
+- Islamic events
+- Mosque finder
+- Halal places map
+
+====================================
+8. COMMUNITY FEATURES
+====================================
+
+- Study circles
+- Quran groups
+- Teacher/student mode
+- Leaderboards
+- Daily challenges
+- Community recitations
+- Share progress
+- Islamic social feed
+
+====================================
+9. AI ISLAMIC ASSISTANT
+====================================
+
+- Ask Islamic questions
+- AI study companion
+- Tafsir explanations
+- Simplified meanings
+- Daily learning plans
+- Personalized recommendations
+- AI-generated quizzes
+
+====================================
+10. GAMIFICATION
+====================================
+
+- XP points
+- Learning streaks
+- Achievement badges
+- Daily missions
+- Rewards system
+- Quran journey levels
+- Weekly challenges
+
+====================================
+11. PREMIUM FEATURES
+====================================
+
+- Advanced AI corrections
+- Unlimited recordings
+- Offline full Quran
+- Premium voices
+- Advanced analytics
+- Family accounts
+- Teacher dashboards
+
+====================================
+UI/UX REQUIREMENTS
+====================================
+
+- Ultra clean design
+- Calm spiritual experience
+- Smooth animations
+- Gesture interactions
+- Interactive cards
+- Elegant onboarding
+- Rich typography
+- Realtime audio visualizers
+- Floating audio player
+- Bottom tab navigation
+- Responsive Android + iOS design
+
+====================================
+TECH STACK
+====================================
+
+Frontend:
+- React Native
+- Expo SDK latest
+- TypeScript
+- React Navigation
+- React Native Reanimated
+- React Native Gesture Handler
+- React Native Skia
+- Lottie Animations
+- Zustand state management
+
+VOICE & AI:
+- OpenAI Whisper
+- TensorFlow Lite
+- Speech recognition
+- Audio waveform analysis
+- Voice activity detection
+
+BACKEND:
+- Node.js
+- NestJS
+- Firebase
+- PostgreSQL
+- Redis
+
+AUDIO:
+- Expo AV
+- Audio streaming
+- Background playback
+- Audio caching
+
+AUTH:
+- Firebase Authentication
+
+NOTIFICATIONS:
+- Firebase Cloud Messaging
+
+STORAGE:
+- Firebase Storage
+- AWS S3
+
+ANALYTICS:
+- Firebase Analytics
+- Mixpanel
+
+PAYMENTS:
+- Stripe
+- RevenueCat
+
+====================================
+PERFORMANCE REQUIREMENTS
+====================================
+
+- Fast startup
+- Offline support
+- Cached Quran pages
+- Smooth audio playback
+- Optimized animations
+- 60 FPS performance
+- Battery optimized
+
+====================================
+GENERATE:
+====================================
+
+- Full folder structure
+- Modern scalable architecture
+- Beautiful UI screens
+- Reusable components
+- Database schema
+- API structure
+- Audio engine setup
+- AI correction workflow
+- Clean production-ready code
+- Islamic design system
+
+The app should feel like a premium spiritual AI companion and the best Quran learning experience available on mobile.
