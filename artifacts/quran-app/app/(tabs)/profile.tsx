@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { HifzSession, useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
+import { formatTime } from "@/services/notificationService";
 import { TRANSLATION_OPTIONS } from "@/services/quranApi";
 
 const BADGES = [
@@ -87,7 +88,7 @@ export default function ProfileScreen() {
   const {
     progress, isDarkMode, toggleDarkMode, fontSize, setFontSize,
     translationLang, setTranslationLang, userName, setUserName,
-    dailyGoalMinutes, setDailyGoalMinutes, hifzSessions,
+    dailyGoalMinutes, setDailyGoalMinutes, hifzSessions, notificationPrefs,
   } = useApp();
   const topPadding = Platform.OS === "web" ? 67 : insets.top;
 
@@ -390,6 +391,30 @@ export default function ProfileScreen() {
                 </View>
                 <View style={styles.settingRight}>
                   <Text style={[styles.settingValue, { color: colors.mutedForeground }]}>{dailyGoalMinutes} min</Text>
+                  <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.settingRow, { borderBottomColor: colors.border, borderBottomWidth: 1 }]}
+                onPress={() => router.push("/notification-settings" as any)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.settingLeft}>
+                  <Feather name="bell" size={18} color="#F59E0B" />
+                  <View>
+                    <Text style={[styles.settingLabel, { color: colors.foreground }]}>Daily Reminder</Text>
+                    {notificationPrefs.enabled && (
+                      <Text style={[styles.settingSubValue, { color: colors.primary }]}>
+                        🔔 {formatTime(notificationPrefs.hour, notificationPrefs.minute)}
+                      </Text>
+                    )}
+                  </View>
+                </View>
+                <View style={styles.settingRight}>
+                  <Text style={[styles.settingValue, { color: colors.mutedForeground }]}>
+                    {notificationPrefs.enabled ? "On" : "Off"}
+                  </Text>
                   <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
                 </View>
               </TouchableOpacity>
@@ -713,6 +738,7 @@ const styles = StyleSheet.create({
   settingRight: { flexDirection: "row", alignItems: "center", gap: 6 },
   settingLabel: { fontSize: 14, fontFamily: "Inter_500Medium" },
   settingValue: { fontSize: 13, fontFamily: "Inter_400Regular" },
+  settingSubValue: { fontSize: 11, fontFamily: "Inter_500Medium", marginTop: 1 },
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   modalSheet: { borderTopLeftRadius: 28, borderTopRightRadius: 28, maxHeight: "80%", minHeight: "30%" },
   modalHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: "center", marginTop: 12, marginBottom: 8 },
