@@ -10,6 +10,7 @@ import {
   View,
 } from "react-native";
 
+import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 
 export type HifzDifficulty = "easy" | "medium" | "hard";
@@ -25,25 +26,20 @@ interface Props {
   showTranslation?: boolean;
 }
 
-/** Returns which word indices should start hidden based on difficulty */
 function getInitiallyHidden(wordCount: number, difficulty: HifzDifficulty): Set<number> {
   const hidden = new Set<number>();
   if (difficulty === "easy") {
-    // Hide every other word, keep first and last visible
     for (let i = 1; i < wordCount - 1; i += 2) hidden.add(i);
   } else if (difficulty === "medium") {
-    // Hide 2 out of every 3 words
     for (let i = 0; i < wordCount; i++) {
       if (i % 3 !== 0) hidden.add(i);
     }
   } else {
-    // Hard: hide all
     for (let i = 0; i < wordCount; i++) hidden.add(i);
   }
   return hidden;
 }
 
-/** Single tappable word — blurred when hidden, revealed when tapped */
 function HifzWord({
   word,
   index,
@@ -65,26 +61,11 @@ function HifzWord({
 
   useEffect(() => {
     if (prevHidden.current && !isHidden) {
-      // Word just got revealed — bounce in
       Animated.sequence([
-        Animated.spring(bounceAnim, {
-          toValue: 1.15,
-          useNativeDriver: true,
-          speed: 30,
-          bounciness: 10,
-        }),
-        Animated.spring(bounceAnim, {
-          toValue: 1,
-          useNativeDriver: true,
-          speed: 20,
-          bounciness: 4,
-        }),
+        Animated.spring(bounceAnim, { toValue: 1.15, useNativeDriver: true, speed: 30, bounciness: 10 }),
+        Animated.spring(bounceAnim, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 4 }),
       ]).start();
-      Animated.timing(revealAnim, {
-        toValue: 1,
-        duration: 250,
-        useNativeDriver: true,
-      }).start();
+      Animated.timing(revealAnim, { toValue: 1, duration: 250, useNativeDriver: true }).start();
     }
     prevHidden.current = isHidden;
   }, [isHidden]);
@@ -124,12 +105,7 @@ function HifzWord({
   return (
     <Animated.View style={{ transform: [{ scale: bounceAnim }], opacity: revealAnim }}>
       <View style={[styles.revealedWord, { backgroundColor: colors.secondary, borderColor: colors.primary + "30" }]}>
-        <Text
-          style={[
-            styles.arabicWord,
-            { color: colors.primary, fontSize: wordFontSize },
-          ]}
-        >
+        <Text style={[styles.arabicWord, { color: colors.primary, fontSize: wordFontSize }]}>
           {word}
         </Text>
       </View>
@@ -154,20 +130,21 @@ export default function HifzView({
   showTranslation = true,
 }: Props) {
   const colors = useColors();
+  const { recordHifzSession } = useApp();
 
-  // Split Arabic text into words (RTL, space-separated)
   const words = arabic.trim().split(/\s+/).filter(Boolean);
   const [hiddenWords, setHiddenWords] = useState<Set<number>>(
     () => getInitiallyHidden(words.length, difficulty)
   );
   const [celebrated, setCelebrated] = useState(false);
   const celebrateAnim = useRef(new Animated.Value(0)).current;
+  const sessionRecorded = useRef(false);
 
-  // Reset when difficulty changes
   useEffect(() => {
     setHiddenWords(getInitiallyHidden(words.length, difficulty));
     setCelebrated(false);
     celebrateAnim.setValue(0);
+    sessionRecorded.current = false;
   }, [difficulty, arabic]);
 
   const revealedCount = words.length - hiddenWords.size;
@@ -182,6 +159,11 @@ export default function HifzView({
         Animated.timing(celebrateAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
         Animated.timing(celebrateAnim, { toValue: 0, duration: 600, useNativeDriver: true }),
       ]).start();
+
+      if (!sessionRecorded.current) {
+        sessionRecorded.current = true;
+        recordHifzSession(surahId, surahName, ayahNumber);
+      }
     }
   }, [allRevealed]);
 
@@ -203,13 +185,13 @@ export default function HifzView({
     setHiddenWords(getInitiallyHidden(words.length, difficulty));
     setCelebrated(false);
     celebrateAnim.setValue(0);
+    sessionRecorded.current = false;
   };
 
   const diffInfo = DIFFICULTY_LABELS[difficulty];
 
   return (
     <View style={styles.container}>
-      {/* Header: difficulty badge + stats + actions */}
       <View style={styles.header}>
         <View style={[styles.diffBadge, { backgroundColor: diffInfo.color + "18", borderColor: diffInfo.color + "40" }]}>
           <View style={[styles.diffDot, { backgroundColor: diffInfo.color }]} />
@@ -238,20 +220,15 @@ export default function HifzView({
         </View>
       </View>
 
-      {/* Progress bar */}
       <View style={[styles.progressTrack, { backgroundColor: colors.muted }]}>
-        <Animated.View
+        <View
           style={[
             styles.progressFill,
-            {
-              backgroundColor: diffInfo.color,
-              width: `${Math.round(progress * 100)}%`,
-            },
+            { backgroundColor: diffInfo.color, width: `${Math.round(progress * 100)}%` as any },
           ]}
         />
       </View>
 
-      {/* All-revealed celebration banner */}
       {allRevealed && (
         <Animated.View
           style={[
@@ -268,16 +245,18 @@ export default function HifzView({
           <Text style={styles.celebrationEmoji}>🌟</Text>
           <View style={{ flex: 1 }}>
             <Text style={[styles.celebrationTitle, { color: "#10B981" }]}>
-              Excellent! All words revealed
+              Excellent! Ayah memorized
             </Text>
             <Text style={[styles.celebrationSub, { color: colors.mutedForeground }]}>
-              Tap Reset to practice again
+              Recorded in your Hifz progress
             </Text>
+          </View>
+          <View style={[styles.xpBadge, { backgroundColor: "#10B98125" }]}>
+            <Text style={[styles.xpBadgeText, { color: "#10B981" }]}>+1 Ayah</Text>
           </View>
         </Animated.View>
       )}
 
-      {/* Word chips — RTL flow */}
       <View style={styles.wordsContainer}>
         {words.map((word, i) => (
           <HifzWord
@@ -292,7 +271,6 @@ export default function HifzView({
         ))}
       </View>
 
-      {/* Hint bar */}
       {hiddenWords.size > 0 && (
         <View style={[styles.hint, { borderColor: colors.border }]}>
           <Feather name="info" size={11} color={colors.mutedForeground} />
@@ -302,7 +280,6 @@ export default function HifzView({
         </View>
       )}
 
-      {/* Translation (dimmed while practicing) */}
       {showTranslation && (
         <View style={[styles.translationBox, { backgroundColor: colors.muted, borderColor: colors.border }]}>
           <Text style={[styles.translationText, { color: colors.mutedForeground }]}>
@@ -316,12 +293,7 @@ export default function HifzView({
 
 const styles = StyleSheet.create({
   container: { gap: 10 },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    flexWrap: "wrap",
-  },
+  header: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
   diffBadge: {
     flexDirection: "row",
     alignItems: "center",
@@ -358,6 +330,12 @@ const styles = StyleSheet.create({
   celebrationEmoji: { fontSize: 22 },
   celebrationTitle: { fontSize: 13, fontFamily: "Inter_700Bold" },
   celebrationSub: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 2 },
+  xpBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  xpBadgeText: { fontSize: 12, fontFamily: "Inter_700Bold" },
   wordsContainer: {
     flexDirection: "row-reverse",
     flexWrap: "wrap",
@@ -391,15 +369,6 @@ const styles = StyleSheet.create({
     paddingTop: 8,
   },
   hintText: { fontSize: 11, fontFamily: "Inter_400Regular" },
-  translationBox: {
-    padding: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-  },
-  translationText: {
-    fontSize: 13,
-    fontFamily: "Inter_400Regular",
-    lineHeight: 20,
-    fontStyle: "italic",
-  },
+  translationBox: { padding: 12, borderRadius: 10, borderWidth: 1 },
+  translationText: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 20, fontStyle: "italic" },
 });

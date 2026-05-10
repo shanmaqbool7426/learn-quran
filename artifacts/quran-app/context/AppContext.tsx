@@ -10,6 +10,13 @@ interface UserProgress {
   surahs: Record<number, { started: boolean; completed: boolean; progress: number }>;
 }
 
+export interface HifzSession {
+  surahId: number;
+  surahName: string;
+  ayahNumber: number;
+  timestamp: number;
+}
+
 export interface AppContextType {
   progress: UserProgress;
   bookmarks: number[];
@@ -21,6 +28,7 @@ export interface AppContextType {
   userName: string;
   dailyGoalMinutes: number;
   sessionMinutes: number;
+  hifzSessions: HifzSession[];
   addXP: (amount: number) => void;
   toggleBookmark: (ayahId: number) => void;
   setLastRead: (surahId: number, ayah: number) => void;
@@ -33,6 +41,7 @@ export interface AppContextType {
   setUserName: (name: string) => void;
   addSessionMinutes: (mins: number) => void;
   setDailyGoalMinutes: (mins: number) => void;
+  recordHifzSession: (surahId: number, surahName: string, ayahNumber: number) => void;
 }
 
 const defaultProgress: UserProgress = {
@@ -57,6 +66,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [userName, setUserNameState] = useState("Ahmad Al-Rashid");
   const [dailyGoalMinutes, setDailyGoalMinutesState] = useState(30);
   const [sessionMinutes, setSessionMinutes] = useState(0);
+  const [hifzSessions, setHifzSessions] = useState<HifzSession[]>([]);
 
   useEffect(() => {
     loadData();
@@ -67,6 +77,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const [
         savedProgress, savedBookmarks, savedLastRead, savedDark,
         savedTasbeeh, savedFontSize, savedLang, savedName, savedGoal,
+        savedHifzSessions,
       ] = await Promise.all([
         AsyncStorage.getItem("progress"),
         AsyncStorage.getItem("bookmarks"),
@@ -77,6 +88,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         AsyncStorage.getItem("translationLang"),
         AsyncStorage.getItem("userName"),
         AsyncStorage.getItem("dailyGoalMinutes"),
+        AsyncStorage.getItem("hifzSessions"),
       ]);
       if (savedProgress) setProgress(JSON.parse(savedProgress));
       if (savedBookmarks) setBookmarks(JSON.parse(savedBookmarks));
@@ -87,6 +99,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (savedLang) setTranslationLangState(JSON.parse(savedLang));
       if (savedName) setUserNameState(JSON.parse(savedName));
       if (savedGoal) setDailyGoalMinutesState(JSON.parse(savedGoal));
+      if (savedHifzSessions) setHifzSessions(JSON.parse(savedHifzSessions));
     } catch {}
   };
 
@@ -179,6 +192,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     AsyncStorage.setItem("dailyGoalMinutes", JSON.stringify(mins));
   }, []);
 
+  const recordHifzSession = useCallback((surahId: number, surahName: string, ayahNumber: number) => {
+    setHifzSessions(prev => {
+      const session: HifzSession = { surahId, surahName, ayahNumber, timestamp: Date.now() };
+      const updated = [session, ...prev].slice(0, 500);
+      AsyncStorage.setItem("hifzSessions", JSON.stringify(updated));
+      return updated;
+    });
+    setProgress(prev => {
+      const updated = { ...prev, ayahsMemorized: prev.ayahsMemorized + 1 };
+      AsyncStorage.setItem("progress", JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
+
   return (
     <AppContext.Provider
       value={{
@@ -192,6 +219,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         userName,
         dailyGoalMinutes,
         sessionMinutes,
+        hifzSessions,
         addXP,
         toggleBookmark,
         setLastRead,
@@ -204,6 +232,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setUserName,
         addSessionMinutes,
         setDailyGoalMinutes,
+        recordHifzSession,
       }}
     >
       {children}

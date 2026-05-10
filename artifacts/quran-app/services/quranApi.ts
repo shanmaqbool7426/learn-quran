@@ -1,5 +1,6 @@
 const BASE = "https://api.alquran.cloud/v1";
 export const AUDIO_CDN = "https://cdn.islamic.network/quran/audio/128";
+export const WORD_AUDIO_CDN = "https://audio.qurancdn.com/";
 
 export interface ApiSurah {
   number: number;
@@ -53,6 +54,7 @@ export interface WordByWord {
   word: string;
   translation: string;
   transliteration: string;
+  audioUrl: string;
 }
 
 async function get<T>(path: string): Promise<T> {
@@ -93,9 +95,20 @@ export async function fetchSurahDetail(
 
 export async function fetchWordByWord(surahId: number, ayahNumber: number): Promise<WordByWord[]> {
   try {
-    const res = await fetch(`https://api.quran.com/api/v4/verses/by_key/${surahId}:${ayahNumber}?words=true&word_fields=text_uthmani,transliteration,translation`);
+    const res = await fetch(
+      `https://api.quran.com/api/v4/verses/by_key/${surahId}:${ayahNumber}?words=true&word_fields=text_uthmani,transliteration,translation,audio_url`
+    );
     if (!res.ok) return [];
-    const data = await res.json() as { verse?: { words?: Array<{ text_uthmani?: string; transliteration?: { text?: string }; translation?: { text?: string } }> } };
+    const data = await res.json() as {
+      verse?: {
+        words?: Array<{
+          text_uthmani?: string;
+          transliteration?: { text?: string };
+          translation?: { text?: string };
+          audio_url?: string;
+        }>
+      }
+    };
     const words = data?.verse?.words ?? [];
     return words
       .filter(w => w.text_uthmani)
@@ -103,6 +116,7 @@ export async function fetchWordByWord(surahId: number, ayahNumber: number): Prom
         word: w.text_uthmani ?? "",
         translation: w.translation?.text ?? "",
         transliteration: w.transliteration?.text ?? "",
+        audioUrl: w.audio_url ? `${WORD_AUDIO_CDN}${w.audio_url}` : "",
       }));
   } catch {
     return [];

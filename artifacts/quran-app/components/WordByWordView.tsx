@@ -1,51 +1,110 @@
+import { Feather } from "@expo/vector-icons";
+import { Audio } from "expo-av";
+import * as Haptics from "expo-haptics";
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
+  Platform,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from "react-native";
 
 import { useColors } from "@/hooks/useColors";
 import { fetchWordByWord, WordByWord } from "@/services/quranApi";
 
-interface Props {
-  surahId: number;
-  ayahNumber: number;
-  fontSize?: number;
-  /** 0–1 fraction of ayah playback — drives word highlight */
-  playbackProgress?: number;
-  isPlaying?: boolean;
+// ── Module-level audio singleton so only one word plays at a time ──────────────
+let _nativeSound: Audio.Sound | null = null;
+let _webAudio: HTMLAudioElement | null = null;
+let _playingUrl = "";
+let _stopCurrentCallback: (() => void) | null = null;
+
+async function stopCurrentWordAudio() {
+  if (_stopCurrentCallback) {
+    _stopCurrentCallback();
+    _stopCurrentCallback = null;
+  }
+  if (Platform.OS === "web") {
+    if (_webAudio) { _webAudio.pause(); _webAudio.src = ""; _webAudio = null; }
+  } else {
+    if (_nativeSound) {
+      try { await _nativeSound.stopAsync(); await _nativeSound.unloadAsync(); } catch {}
+      _nativeSound = null;
+    }
+  }
+  _playingUrl = "";
 }
 
-/** Single word chip, highlights and pulses when it is the active word */
-function WordChip({
-  word,
-  isActive,
-  isEven,
-  colors,
-  fontSize,
-}: {
+async function playWordAudio(
+  url: string,
+  onStart: () => void,
+  onStop: () => void,
+): Promise<void> {
+  if (!url) return;
+
+  if (_playingUrl === url) {
+    await stopCurrentWordAudio();
+    onStop();
+    return;
+  }
+
+  await stopCurrentWordAudio();
+
+  _playingUrl = url;
+  _stopCurrentCallback = onStop;
+  onStart();
+
+  if (Platform.OS === "web") {
+    try {
+      const audio = new (window as any).Audio(url) as HTMLAudioElement;
+      _webAudio = audio;
+      audio.addEventListener("ended", () => { _playingUrl = ""; _webAudio = null; _stopCurrentCallback = null; onStop(); });
+      audio.addEventListener("error", () => { _playingUrl = ""; _webAudio = null; _stopCurrentCallback = null; onStop(); });
+      await audio.play();
+    } catch { onStop(); }
+  } else {
+    try {
+      await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+      const { sound } = await Audio.Sound.createAsync({ uri: url }, { shouldPlay: true });
+      _nativeSound = sound;
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (status.isLoaded && status.didJustFinish) {
+          _playingUrl = "";
+          _nativeSound = null;
+          _stopCurrentCallback = null;
+          onStop();
+          sound.unloadAsync().catch(() => {});
+        }
+      });
+    } catch { onStop(); }
+  }
+}
+
+// ── WordChip ────────────────────────────────────────────────────────────────────
+interface WordChipProps {
   word: WordByWord;
   isActive: boolean;
   isEven: boolean;
   colors: ReturnType<typeof import("@/hooks/useColors").useColors>;
   fontSize: number;
-}) {
+}
+
+function WordChip({ word, isActive, isEven, colors, fontSize }: WordChipProps) {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const glowAnim = useRef(new Animated.Value(0)).current;
+  const tapScaleAnim = useRef(new Animated.Value(1)).current;
+  const [isPlayingWord, setIsPlayingWord] = useState(false);
 
   useEffect(() => {
     if (isActive) {
-      // Pulse scale
       Animated.loop(
         Animated.sequence([
           Animated.timing(scaleAnim, { toValue: 1.06, duration: 420, useNativeDriver: true }),
           Animated.timing(scaleAnim, { toValue: 1, duration: 420, useNativeDriver: true }),
         ])
       ).start();
-      // Fade glow in
       Animated.timing(glowAnim, { toValue: 1, duration: 200, useNativeDriver: false }).start();
     } else {
       scaleAnim.stopAnimation();
@@ -56,53 +115,108 @@ function WordChip({
     }
   }, [isActive]);
 
-  const chipBg = isActive
+  const handleTap = async () => {
+    if (!word.audioUrl) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Animated.sequence([
+      Animated.timing(tapScaleAnim, { toValue: 0.92, duration: 80, useNativeDriver: true }),
+      Animated.timing(tapScaleAnim, { toValue: 1, duration: 120, useNativeDriver: true }),
+    ]).start();
+    await playWordAudio(
+      word.audioUrl,
+      () => setIsPlayingWord(true),
+      () => setIsPlayingWord(false),
+    );
+  };
+
+  const isPlayingState = isPlayingWord;
+  const chipBg = isPlayingState
+    ? "#10B981"
+    : isActive
     ? colors.primary
     : isEven
     ? colors.secondary
     : colors.muted;
 
-  const arabicColor = isActive ? "#FFFFFF" : colors.primary;
-  const translitColor = isActive ? "rgba(255,255,255,0.75)" : colors.mutedForeground;
-  const meaningColor = isActive ? "#FFFFFF" : colors.foreground;
+  const arabicColor = isPlayingState || isActive ? "#FFFFFF" : colors.primary;
+  const translitColor = isPlayingState || isActive ? "rgba(255,255,255,0.75)" : colors.mutedForeground;
+  const meaningColor = isPlayingState || isActive ? "#FFFFFF" : colors.foreground;
 
   return (
-    <Animated.View
-      style={[
-        styles.wordChip,
-        {
-          backgroundColor: chipBg,
-          borderColor: isActive ? colors.primary : colors.border,
-          transform: [{ scale: scaleAnim }],
-          shadowColor: colors.primary,
-          shadowOffset: { width: 0, height: 0 },
-          shadowOpacity: glowAnim as any,
-          shadowRadius: 8,
-          elevation: isActive ? 6 : 0,
-        },
-      ]}
+    <TouchableOpacity
+      onPress={handleTap}
+      activeOpacity={word.audioUrl ? 0.75 : 1}
+      disabled={!word.audioUrl}
     >
-      <Text
-        style={[styles.arabic, { color: arabicColor, fontSize: Math.min(fontSize, 26) }]}
+      <Animated.View
+        style={[
+          styles.wordChip,
+          {
+            backgroundColor: chipBg,
+            borderColor: isPlayingState
+              ? "#10B981"
+              : isActive
+              ? colors.primary
+              : colors.border,
+            transform: [{ scale: scaleAnim }, { scale: tapScaleAnim }],
+            shadowColor: isPlayingState ? "#10B981" : colors.primary,
+            shadowOffset: { width: 0, height: 0 },
+            shadowOpacity: glowAnim as any,
+            shadowRadius: 8,
+            elevation: isActive || isPlayingState ? 6 : 0,
+          },
+        ]}
       >
-        {word.word}
-      </Text>
+        {/* Speaker icon shown when playing or audio available */}
+        {(isPlayingState || word.audioUrl) && (
+          <View style={styles.speakerRow}>
+            {isPlayingState ? (
+              <View style={styles.playingDot}>
+                <View style={[styles.dot, { backgroundColor: "#FFFFFF" }]} />
+                <View style={[styles.dot, { backgroundColor: "#FFFFFF", height: 8 }]} />
+                <View style={[styles.dot, { backgroundColor: "#FFFFFF" }]} />
+              </View>
+            ) : (
+              <Feather
+                name="volume-2"
+                size={9}
+                color={isActive ? "rgba(255,255,255,0.6)" : colors.mutedForeground + "99"}
+              />
+            )}
+          </View>
+        )}
 
-      <View style={[styles.divider, { backgroundColor: isActive ? "rgba(255,255,255,0.3)" : colors.border }]} />
-
-      {!!word.transliteration && (
-        <Text style={[styles.translit, { color: translitColor }]} numberOfLines={1}>
-          {word.transliteration}
+        <Text
+          style={[styles.arabic, { color: arabicColor, fontSize: Math.min(fontSize, 26) }]}
+        >
+          {word.word}
         </Text>
-      )}
 
-      {!!word.translation && (
-        <Text style={[styles.meaning, { color: meaningColor }]} numberOfLines={2}>
-          {word.translation}
-        </Text>
-      )}
-    </Animated.View>
+        <View style={[styles.divider, { backgroundColor: isPlayingState || isActive ? "rgba(255,255,255,0.3)" : colors.border }]} />
+
+        {!!word.transliteration && (
+          <Text style={[styles.translit, { color: translitColor }]} numberOfLines={1}>
+            {word.transliteration}
+          </Text>
+        )}
+
+        {!!word.translation && (
+          <Text style={[styles.meaning, { color: meaningColor }]} numberOfLines={2}>
+            {word.translation}
+          </Text>
+        )}
+      </Animated.View>
+    </TouchableOpacity>
   );
+}
+
+// ── WordByWordView ──────────────────────────────────────────────────────────────
+interface Props {
+  surahId: number;
+  ayahNumber: number;
+  fontSize?: number;
+  playbackProgress?: number;
+  isPlaying?: boolean;
 }
 
 export default function WordByWordView({
@@ -133,12 +247,8 @@ export default function WordByWordView({
     return () => { cancelled = true; };
   }, [surahId, ayahNumber]);
 
-  // Derive which word index is active from playback progress
   const activeWordIndex = isPlaying && words.length > 0
-    ? Math.min(
-        Math.floor(playbackProgress * words.length),
-        words.length - 1
-      )
+    ? Math.min(Math.floor(playbackProgress * words.length), words.length - 1)
     : -1;
 
   if (loading) {
@@ -205,9 +315,9 @@ export default function WordByWordView({
       {/* Legend */}
       <View style={[styles.legend, { borderTopColor: colors.border }]}>
         <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: colors.secondary, borderColor: colors.border }]} />
+          <Feather name="volume-2" size={10} color={colors.mutedForeground} />
           <Text style={[styles.legendText, { color: colors.mutedForeground }]}>
-            Arabic · Transliteration · Meaning
+            Tap any word to hear pronunciation
           </Text>
         </View>
         <Text style={[styles.wordCount, { color: colors.mutedForeground }]}>
@@ -262,6 +372,23 @@ const styles = StyleSheet.create({
     minWidth: 72,
     maxWidth: 110,
   },
+  speakerRow: {
+    position: "absolute",
+    top: 5,
+    right: 6,
+  },
+  playingDot: {
+    flexDirection: "row",
+    gap: 1.5,
+    alignItems: "flex-end",
+    height: 10,
+  },
+  dot: {
+    width: 2.5,
+    height: 6,
+    borderRadius: 1.5,
+    backgroundColor: "#FFFFFF",
+  },
   arabic: {
     fontWeight: "400",
     textAlign: "center",
@@ -289,7 +416,7 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     borderTopWidth: 1,
   },
-  legendItem: { flexDirection: "row", alignItems: "center", gap: 6 },
+  legendItem: { flexDirection: "row", alignItems: "center", gap: 5 },
   legendDot: { width: 10, height: 10, borderRadius: 5, borderWidth: 1 },
   legendText: { fontSize: 11, fontFamily: "Inter_400Regular" },
   wordCount: { fontSize: 11, fontFamily: "Inter_500Medium" },

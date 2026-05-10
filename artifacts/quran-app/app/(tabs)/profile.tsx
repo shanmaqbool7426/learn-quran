@@ -1,11 +1,11 @@
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Alert, Modal, Platform, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { useApp } from "@/context/AppContext";
+import { HifzSession, useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { TRANSLATION_OPTIONS } from "@/services/quranApi";
 
@@ -19,11 +19,76 @@ const BADGES = [
 ];
 
 const FONT_SIZES = [18, 20, 22, 24, 26, 28, 32];
+const DAY_ABBR = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+function getHifzStats(sessions: HifzSession[]) {
+  const now = Date.now();
+  const oneDay = 24 * 60 * 60 * 1000;
+  const sevenDays = 7 * oneDay;
+
+  const weekSessions = sessions.filter(s => now - s.timestamp < sevenDays);
+
+  // Build 7-day bar data (index 0 = 6 days ago, index 6 = today)
+  const bars: { label: string; count: number; dayIndex: number }[] = [];
+  const todayDate = new Date();
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(now - i * oneDay);
+    const dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const dayEnd = dayStart + oneDay;
+    const count = weekSessions.filter(s => s.timestamp >= dayStart && s.timestamp < dayEnd).length;
+    bars.push({ label: DAY_ABBR[d.getDay()]!, count, dayIndex: 6 - i });
+  }
+
+  // Unique surahs practiced this week
+  const surahMap = new Map<number, { surahName: string; count: number; lastTime: number }>();
+  for (const s of weekSessions) {
+    const existing = surahMap.get(s.surahId);
+    if (!existing) {
+      surahMap.set(s.surahId, { surahName: s.surahName, count: 1, lastTime: s.timestamp });
+    } else {
+      existing.count += 1;
+      if (s.timestamp > existing.lastTime) existing.lastTime = s.timestamp;
+    }
+  }
+  const recentSurahs = Array.from(surahMap.entries())
+    .sort((a, b) => b[1].lastTime - a[1].lastTime)
+    .slice(0, 5)
+    .map(([surahId, data]) => ({ surahId, ...data }));
+
+  // Streak: count consecutive days with sessions ending today
+  let streak = 0;
+  for (let i = 0; i < 60; i++) {
+    const dayStart = new Date(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate() - i).getTime();
+    const dayEnd = dayStart + oneDay;
+    const hasSession = sessions.some(s => s.timestamp >= dayStart && s.timestamp < dayEnd);
+    if (hasSession) streak++;
+    else break;
+  }
+
+  const maxBar = Math.max(...bars.map(b => b.count), 1);
+
+  return { bars, recentSurahs, weekSessions, streak, maxBar };
+}
+
+function timeAgo(ts: number): string {
+  const diff = Date.now() - ts;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
+}
 
 export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { progress, isDarkMode, toggleDarkMode, fontSize, setFontSize, translationLang, setTranslationLang, userName, setUserName, dailyGoalMinutes, setDailyGoalMinutes } = useApp();
+  const {
+    progress, isDarkMode, toggleDarkMode, fontSize, setFontSize,
+    translationLang, setTranslationLang, userName, setUserName,
+    dailyGoalMinutes, setDailyGoalMinutes, hifzSessions,
+  } = useApp();
   const topPadding = Platform.OS === "web" ? 67 : insets.top;
 
   const [nameModalVisible, setNameModalVisible] = useState(false);
@@ -34,8 +99,9 @@ export default function ProfileScreen() {
 
   const xpToNext = 500 - (progress.xp % 500);
   const xpProgress = ((progress.xp % 500) / 500) * 100;
-
   const currentLang = TRANSLATION_OPTIONS.find(t => t.id === translationLang) ?? TRANSLATION_OPTIONS[0]!;
+
+  const hifzStats = useMemo(() => getHifzStats(hifzSessions), [hifzSessions]);
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
@@ -88,6 +154,146 @@ export default function ProfileScreen() {
         </View>
 
         <View style={styles.content}>
+
+          {/* ── Hifz Progress Tracker ── */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <View style={[styles.sectionIconBadge, { backgroundColor: "#F59E0B15" }]}>
+                <Text style={styles.sectionIcon}>📖</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Hifz Tracker</Text>
+                <Text style={[styles.sectionSub, { color: colors.mutedForeground }]}>
+                  Memorization progress this week
+                </Text>
+              </View>
+              {hifzStats.streak > 0 && (
+                <View style={[styles.streakBadge, { backgroundColor: "#FF6B2B15", borderColor: "#FF6B2B30" }]}>
+                  <Text style={styles.streakFire}>🔥</Text>
+                  <Text style={[styles.streakNum, { color: "#FF6B2B" }]}>{hifzStats.streak}</Text>
+                </View>
+              )}
+            </View>
+
+            {/* 7-day activity bars */}
+            <View style={[styles.hifzCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <View style={styles.barsContainer}>
+                {hifzStats.bars.map((bar, i) => {
+                  const heightPct = hifzStats.maxBar > 0 ? bar.count / hifzStats.maxBar : 0;
+                  const isToday = i === 6;
+                  return (
+                    <View key={i} style={styles.barCol}>
+                      <View style={styles.barTrack}>
+                        <View
+                          style={[
+                            styles.barFill,
+                            {
+                              height: `${Math.max(heightPct * 100, bar.count > 0 ? 8 : 0)}%` as any,
+                              backgroundColor: bar.count > 0
+                                ? isToday ? colors.primary : "#10B981"
+                                : colors.muted,
+                              borderRadius: 4,
+                            },
+                          ]}
+                        />
+                      </View>
+                      {bar.count > 0 && (
+                        <Text style={[styles.barCount, { color: isToday ? colors.primary : "#10B981" }]}>
+                          {bar.count}
+                        </Text>
+                      )}
+                      <Text
+                        style={[
+                          styles.barLabel,
+                          { color: isToday ? colors.primary : colors.mutedForeground,
+                            fontFamily: isToday ? "Inter_700Bold" : "Inter_400Regular" },
+                        ]}
+                      >
+                        {bar.label}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
+
+              {/* Week summary row */}
+              <View style={[styles.weekSummary, { borderTopColor: colors.border }]}>
+                <View style={styles.weekStat}>
+                  <Text style={[styles.weekStatVal, { color: colors.foreground }]}>
+                    {hifzStats.weekSessions.length}
+                  </Text>
+                  <Text style={[styles.weekStatLabel, { color: colors.mutedForeground }]}>
+                    Sessions
+                  </Text>
+                </View>
+                <View style={[styles.weekDivider, { backgroundColor: colors.border }]} />
+                <View style={styles.weekStat}>
+                  <Text style={[styles.weekStatVal, { color: colors.foreground }]}>
+                    {new Set(hifzStats.weekSessions.map(s => s.surahId)).size}
+                  </Text>
+                  <Text style={[styles.weekStatLabel, { color: colors.mutedForeground }]}>
+                    Surahs
+                  </Text>
+                </View>
+                <View style={[styles.weekDivider, { backgroundColor: colors.border }]} />
+                <View style={styles.weekStat}>
+                  <Text style={[styles.weekStatVal, { color: colors.foreground }]}>
+                    {hifzStats.bars.filter(b => b.count > 0).length}
+                  </Text>
+                  <Text style={[styles.weekStatLabel, { color: colors.mutedForeground }]}>
+                    Days Active
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Recently practiced surahs */}
+            {hifzStats.recentSurahs.length > 0 ? (
+              <View style={[styles.recentList, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Text style={[styles.recentTitle, { color: colors.mutedForeground }]}>
+                  Recently Practiced
+                </Text>
+                {hifzStats.recentSurahs.map((item, i) => (
+                  <View
+                    key={item.surahId}
+                    style={[
+                      styles.recentRow,
+                      i < hifzStats.recentSurahs.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border },
+                    ]}
+                  >
+                    <View style={[styles.recentNum, { backgroundColor: colors.primary + "15" }]}>
+                      <Text style={[styles.recentNumText, { color: colors.primary }]}>{item.surahId}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.recentSurahName, { color: colors.foreground }]}>
+                        {item.surahName}
+                      </Text>
+                      <Text style={[styles.recentTime, { color: colors.mutedForeground }]}>
+                        {timeAgo(item.lastTime)}
+                      </Text>
+                    </View>
+                    <View style={[styles.ayahsBadge, { backgroundColor: "#10B98115", borderColor: "#10B98130" }]}>
+                      <Text style={[styles.ayahsBadgeText, { color: "#10B981" }]}>
+                        {item.count} {item.count === 1 ? "ayah" : "ayahs"}
+                      </Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <View style={[styles.emptyHifz, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Text style={styles.emptyHifzEmoji}>🕌</Text>
+                <Text style={[styles.emptyHifzTitle, { color: colors.foreground }]}>
+                  Start Your Hifz Journey
+                </Text>
+                <Text style={[styles.emptyHifzSub, { color: colors.mutedForeground }]}>
+                  Open any Surah and tap the Hifz Mode button to begin memorizing
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {/* ── Achievements ── */}
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Achievements</Text>
             <View style={styles.badgesGrid}>
@@ -370,7 +576,129 @@ const styles = StyleSheet.create({
   statLbl: { fontSize: 11, fontFamily: "Inter_400Regular" },
   content: { padding: 20, gap: 24 },
   section: { gap: 12 },
+  sectionHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
+  sectionIconBadge: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  sectionIcon: { fontSize: 18 },
   sectionTitle: { fontSize: 17, fontFamily: "Inter_700Bold" },
+  sectionSub: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 1 },
+  streakBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  streakFire: { fontSize: 14 },
+  streakNum: { fontSize: 15, fontFamily: "Inter_700Bold" },
+
+  // Hifz card
+  hifzCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    overflow: "hidden",
+  },
+  barsContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 8,
+    height: 110,
+  },
+  barCol: {
+    flex: 1,
+    alignItems: "center",
+    gap: 3,
+    height: "100%",
+    justifyContent: "flex-end",
+  },
+  barTrack: {
+    width: "70%",
+    height: 60,
+    justifyContent: "flex-end",
+    borderRadius: 4,
+    overflow: "hidden",
+  },
+  barFill: {
+    width: "100%",
+    minHeight: 4,
+  },
+  barCount: {
+    fontSize: 9,
+    fontFamily: "Inter_700Bold",
+  },
+  barLabel: {
+    fontSize: 9,
+    textAlign: "center",
+  },
+  weekSummary: {
+    flexDirection: "row",
+    borderTopWidth: 1,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+  },
+  weekStat: { flex: 1, alignItems: "center", gap: 2 },
+  weekStatVal: { fontSize: 18, fontFamily: "Inter_700Bold" },
+  weekStatLabel: { fontSize: 10, fontFamily: "Inter_400Regular" },
+  weekDivider: { width: 1, marginVertical: 4 },
+
+  // Recent surahs list
+  recentList: {
+    borderRadius: 14,
+    borderWidth: 1,
+    overflow: "hidden",
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 4,
+    gap: 0,
+  },
+  recentTitle: {
+    fontSize: 11,
+    fontFamily: "Inter_600SemiBold",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  recentRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 12,
+  },
+  recentNum: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  recentNumText: { fontSize: 13, fontFamily: "Inter_700Bold" },
+  recentSurahName: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  recentTime: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 2 },
+  ayahsBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  ayahsBadgeText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+
+  // Empty state
+  emptyHifz: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 24,
+    alignItems: "center",
+    gap: 8,
+  },
+  emptyHifzEmoji: { fontSize: 32 },
+  emptyHifzTitle: { fontSize: 15, fontFamily: "Inter_700Bold" },
+  emptyHifzSub: { fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20 },
+
+  // Original styles
   badgesGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   badgeItem: { width: "47%", flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: 12, borderWidth: 1 },
   badgeIcon: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
