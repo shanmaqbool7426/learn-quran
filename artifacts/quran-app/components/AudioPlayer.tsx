@@ -6,6 +6,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
+  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -14,6 +15,43 @@ import {
 
 import { Reciter, RECITERS } from "@/constants/reciters";
 import { useColors } from "@/hooks/useColors";
+
+class WebAudio {
+  private el: HTMLAudioElement | null = null;
+  private onEnd: (() => void) | null = null;
+  private onProgress: ((pos: number, dur: number) => void) | null = null;
+  private intervalId: ReturnType<typeof setInterval> | null = null;
+
+  async load(uri: string, onEnd: () => void, onProgress: (pos: number, dur: number) => void) {
+    this.stop();
+    this.onEnd = onEnd;
+    this.onProgress = onProgress;
+    const audio = new (window as any).Audio(uri) as HTMLAudioElement;
+    audio.addEventListener("ended", () => { this.cleanup(); onEnd(); });
+    audio.addEventListener("error", () => { this.cleanup(); onEnd(); });
+    this.el = audio;
+    await audio.play();
+    this.intervalId = setInterval(() => {
+      if (this.el) onProgress(this.el.currentTime * 1000, (this.el.duration || 0) * 1000);
+    }, 300);
+  }
+
+  async play() { await this.el?.play(); }
+  async pause() { this.el?.pause(); }
+
+  stop() {
+    if (this.intervalId) clearInterval(this.intervalId);
+    this.intervalId = null;
+    if (this.el) { this.el.pause(); this.el.src = ""; this.el = null; }
+  }
+
+  private cleanup() {
+    if (this.intervalId) clearInterval(this.intervalId);
+    this.intervalId = null;
+    this.el = null;
+  }
+}
+const webAudio = Platform.OS === "web" ? new WebAudio() : null;
 
 interface Props {
   audioUrls: string[];
@@ -48,13 +86,16 @@ export default function AudioPlayer({
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    Audio.setAudioModeAsync({
-      allowsRecordingIOS: false,
-      playsInSilentModeIOS: true,
-      staysActiveInBackground: true,
-    });
+    if (Platform.OS !== "web") {
+      Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: true,
+      }).catch(() => {});
+    }
     return () => {
       soundRef.current?.unloadAsync();
+      webAudio?.stop();
     };
   }, []);
 
@@ -77,6 +118,29 @@ export default function AudioPlayer({
       if (!url) return;
 
       setPlayerState("loading");
+
+      if (Platform.OS === "web" && webAudio) {
+        try {
+          await webAudio.load(
+            url,
+            () => {
+              const next = index + 1;
+              if (next < audioUrls.length) { onAyahChange(next); loadAndPlay(next); }
+              else setPlayerState("idle");
+            },
+            (pos, dur) => {
+              setPosition(pos);
+              setDuration(dur);
+              if (dur > 0) progressAnim.setValue(pos / dur);
+            }
+          );
+          setPlayerState("playing");
+        } catch {
+          setPlayerState("idle");
+        }
+        return;
+      }
+
       try {
         if (soundRef.current) {
           await soundRef.current.unloadAsync();
@@ -90,17 +154,12 @@ export default function AudioPlayer({
             setPosition(status.positionMillis);
             setDuration(status.durationMillis ?? 0);
             if (status.durationMillis) {
-              const pct = status.positionMillis / status.durationMillis;
-              progressAnim.setValue(pct);
+              progressAnim.setValue(status.positionMillis / status.durationMillis);
             }
             if (status.didJustFinish) {
               const next = index + 1;
-              if (next < audioUrls.length) {
-                onAyahChange(next);
-                loadAndPlay(next);
-              } else {
-                setPlayerState("idle");
-              }
+              if (next < audioUrls.length) { onAyahChange(next); loadAndPlay(next); }
+              else setPlayerState("idle");
             }
           }
         );
@@ -118,10 +177,12 @@ export default function AudioPlayer({
     if (playerState === "idle") {
       loadAndPlay(currentIndex);
     } else if (playerState === "playing") {
-      await soundRef.current?.pauseAsync();
+      if (Platform.OS === "web") await webAudio?.pause();
+      else await soundRef.current?.pauseAsync();
       setPlayerState("paused");
     } else if (playerState === "paused") {
-      await soundRef.current?.playAsync();
+      if (Platform.OS === "web") await webAudio?.play();
+      else await soundRef.current?.playAsync();
       setPlayerState("playing");
     }
   };
@@ -143,11 +204,12 @@ export default function AudioPlayer({
   const handleReciterSelect = async (r: Reciter) => {
     setShowReciters(false);
     const wasPlaying = playerState === "playing";
-    if (soundRef.current) {
-      await soundRef.current.unloadAsync();
-      soundRef.current = null;
-    }
+    if (Platform.OS === "web") { webAudio?.stop(); }
+    else if (soundRef.current) { await soundRef.current.unloadAsync(); soundRef.current = null; }
     setPlayerState("idle");
+    setPosition(0);
+    setDuration(0);
+    progressAnim.setValue(0);
     onReciterChange(r);
     if (wasPlaying) setTimeout(() => loadAndPlay(currentIndex), 300);
   };

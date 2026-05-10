@@ -12,7 +12,7 @@ const TOOLS = [
   { icon: "navigation" as const, label: "Qibla", subtitle: "Find direction", color: "#C8972A", route: "/qibla" },
   { icon: "repeat" as const, label: "Tasbeeh", subtitle: "Digital counter", color: "#8B5CF6", route: "/tasbeeh" },
   { icon: "book-open" as const, label: "Duas", subtitle: "Collection", color: "#0D5C3A", route: "/duas" },
-  { icon: "calendar" as const, label: "Calendar", subtitle: "Hijri dates", color: "#2563EB", route: "/tools" },
+  { icon: "book" as const, label: "Hadith", subtitle: "6 major collections", color: "#2563EB", route: "/hadith" },
   { icon: "dollar-sign" as const, label: "Zakat", subtitle: "Calculator", color: "#D97706", route: "/tools" },
   { icon: "map-pin" as const, label: "Mosque", subtitle: "Finder", color: "#DC2626", route: "/tools" },
 ];
