@@ -35,6 +35,8 @@ interface Props {
   isLoading?: boolean;
   onPlayPress?: () => void;
   fontSize?: number;
+  /** 0–1 fraction of playback progress for this ayah — drives word highlight */
+  playbackProgress?: number;
 }
 
 export default function AyahCard({
@@ -48,6 +50,7 @@ export default function AyahCard({
   isLoading = false,
   onPlayPress,
   fontSize = 24,
+  playbackProgress = 0,
 }: Props) {
   const colors = useColors();
   const { toggleBookmark, bookmarks } = useApp();
@@ -271,6 +274,8 @@ export default function AyahCard({
               surahId={surahId}
               ayahNumber={ayah.number}
               fontSize={fontSize}
+              isPlaying={isPlaying}
+              playbackProgress={playbackProgress}
             />
           </View>
         )}

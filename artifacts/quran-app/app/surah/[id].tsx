@@ -38,6 +38,8 @@ export default function SurahScreen() {
   const [reciter, setReciter] = useState<Reciter>(DEFAULT_RECITER);
   const [currentAyahIdx, setCurrentAyahIdx] = useState(0);
   const [playingIdx, setPlayingIdx] = useState<number | null>(null);
+  const [audioPosition, setAudioPosition] = useState(0);
+  const [audioDuration, setAudioDuration] = useState(0);
   const [langModalVisible, setLangModalVisible] = useState(false);
   const [fontModalVisible, setFontModalVisible] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
@@ -171,12 +173,20 @@ export default function SurahScreen() {
           onAyahChange={(idx) => {
             setCurrentAyahIdx(idx);
             setPlayingIdx(idx);
+            setAudioPosition(0);
+            setAudioDuration(0);
             setLastRead(surahId, ayahNumbers[idx] ?? idx + 1);
+          }}
+          onProgress={(pos, dur) => {
+            setAudioPosition(pos);
+            setAudioDuration(dur);
           }}
           reciter={reciter}
           onReciterChange={(r) => {
             setReciter(r);
             setPlayingIdx(null);
+            setAudioPosition(0);
+            setAudioDuration(0);
           }}
           totalAyahs={data.surah.numberOfAyahs}
           surahName={data.surah.englishName}
@@ -310,6 +320,11 @@ export default function SurahScreen() {
               showWordByWord={showWordByWord}
               isPlaying={playingIdx === idx}
               fontSize={fontSize}
+              playbackProgress={
+                playingIdx === idx && audioDuration > 0
+                  ? audioPosition / audioDuration
+                  : 0
+              }
               onPlayPress={() => {
                 setCurrentAyahIdx(idx);
                 setPlayingIdx(playingIdx === idx ? null : idx);

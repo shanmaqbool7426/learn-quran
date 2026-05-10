@@ -33,7 +33,7 @@ class WebAudio {
     await audio.play();
     this.intervalId = setInterval(() => {
       if (this.el) onProgress(this.el.currentTime * 1000, (this.el.duration || 0) * 1000);
-    }, 300);
+    }, 200);
   }
 
   async play() { await this.el?.play(); }
@@ -58,6 +58,7 @@ interface Props {
   ayahNumbers: number[];
   currentIndex: number;
   onAyahChange: (index: number) => void;
+  onProgress?: (position: number, duration: number) => void;
   reciter: Reciter;
   onReciterChange: (reciter: Reciter) => void;
   totalAyahs: number;
@@ -66,11 +67,54 @@ interface Props {
 
 type PlayerState = "idle" | "loading" | "playing" | "paused";
 
+/** Animated waveform bar — each bar oscillates independently */
+function WaveBar({ isPlaying, delay, color }: { isPlaying: boolean; delay: number; color: string }) {
+  const anim = useRef(new Animated.Value(0.25)).current;
+  const loopRef = useRef<Animated.CompositeAnimation | null>(null);
+
+  useEffect(() => {
+    if (isPlaying) {
+      loopRef.current = Animated.loop(
+        Animated.sequence([
+          Animated.timing(anim, {
+            toValue: 1,
+            duration: 380 + delay * 60,
+            useNativeDriver: false,
+          }),
+          Animated.timing(anim, {
+            toValue: 0.2,
+            duration: 360 + delay * 50,
+            useNativeDriver: false,
+          }),
+        ])
+      );
+      setTimeout(() => loopRef.current?.start(), delay * 80);
+    } else {
+      loopRef.current?.stop();
+      Animated.timing(anim, { toValue: 0.25, duration: 200, useNativeDriver: false }).start();
+    }
+    return () => loopRef.current?.stop();
+  }, [isPlaying]);
+
+  return (
+    <Animated.View
+      style={{
+        width: 3,
+        borderRadius: 2,
+        backgroundColor: color,
+        height: anim.interpolate({ inputRange: [0, 1], outputRange: [4, 22] }),
+        opacity: anim.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] }),
+      }}
+    />
+  );
+}
+
 export default function AudioPlayer({
   audioUrls,
   ayahNumbers,
   currentIndex,
   onAyahChange,
+  onProgress,
   reciter,
   onReciterChange,
   totalAyahs,
@@ -103,14 +147,21 @@ export default function AudioPlayer({
     if (playerState === "playing") {
       Animated.loop(
         Animated.sequence([
-          Animated.timing(pulseAnim, { toValue: 1.06, duration: 800, useNativeDriver: true }),
-          Animated.timing(pulseAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1.05, duration: 900, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1, duration: 900, useNativeDriver: true }),
         ])
       ).start();
     } else {
       pulseAnim.setValue(1);
     }
   }, [playerState]);
+
+  const handleProgress = useCallback((pos: number, dur: number) => {
+    setPosition(pos);
+    setDuration(dur);
+    if (dur > 0) progressAnim.setValue(pos / dur);
+    onProgress?.(pos, dur);
+  }, [onProgress]);
 
   const loadAndPlay = useCallback(
     async (index: number) => {
@@ -128,11 +179,7 @@ export default function AudioPlayer({
               if (next < audioUrls.length) { onAyahChange(next); loadAndPlay(next); }
               else setPlayerState("idle");
             },
-            (pos, dur) => {
-              setPosition(pos);
-              setDuration(dur);
-              if (dur > 0) progressAnim.setValue(pos / dur);
-            }
+            handleProgress
           );
           setPlayerState("playing");
         } catch {
@@ -151,11 +198,7 @@ export default function AudioPlayer({
           { shouldPlay: true },
           (status: AVPlaybackStatus) => {
             if (!status.isLoaded) return;
-            setPosition(status.positionMillis);
-            setDuration(status.durationMillis ?? 0);
-            if (status.durationMillis) {
-              progressAnim.setValue(status.positionMillis / status.durationMillis);
-            }
+            handleProgress(status.positionMillis, status.durationMillis ?? 0);
             if (status.didJustFinish) {
               const next = index + 1;
               if (next < audioUrls.length) { onAyahChange(next); loadAndPlay(next); }
@@ -169,7 +212,7 @@ export default function AudioPlayer({
         setPlayerState("idle");
       }
     },
-    [audioUrls, onAyahChange]
+    [audioUrls, onAyahChange, handleProgress]
   );
 
   const handlePlayPause = async () => {
@@ -219,6 +262,8 @@ export default function AudioPlayer({
     return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
   };
 
+  const isPlaying = playerState === "playing";
+
   return (
     <View style={[styles.container, { backgroundColor: colors.card, borderColor: colors.border }]}>
       {/* Reciter selector */}
@@ -264,14 +309,28 @@ export default function AudioPlayer({
         </View>
       )}
 
-      {/* Now playing */}
+      {/* Now playing + waveform */}
       <View style={styles.nowPlaying}>
-        <Text style={[styles.npTitle, { color: colors.foreground }]} numberOfLines={1}>
-          {surahName}
-        </Text>
-        <Text style={[styles.npSub, { color: colors.mutedForeground }]}>
-          Ayah {ayahNumbers[currentIndex] ?? currentIndex + 1} of {totalAyahs}
-        </Text>
+        <View style={styles.npLeft}>
+          <Text style={[styles.npTitle, { color: colors.foreground }]} numberOfLines={1}>
+            {surahName}
+          </Text>
+          <Text style={[styles.npSub, { color: colors.mutedForeground }]}>
+            Ayah {ayahNumbers[currentIndex] ?? currentIndex + 1} of {totalAyahs}
+          </Text>
+        </View>
+
+        {/* Live waveform visualizer */}
+        <View style={styles.waveform}>
+          {[0, 1, 2, 3, 4, 5, 6].map((i) => (
+            <WaveBar
+              key={i}
+              isPlaying={isPlaying}
+              delay={i}
+              color={isPlaying ? reciter.color : colors.border}
+            />
+          ))}
+        </View>
       </View>
 
       {/* Progress bar */}
@@ -314,7 +373,7 @@ export default function AudioPlayer({
                 <ActivityIndicator color="#FFFFFF" size="small" />
               ) : (
                 <Feather
-                  name={playerState === "playing" ? "pause" : "play"}
+                  name={isPlaying ? "pause" : "play"}
                   size={28}
                   color="#FFFFFF"
                 />
@@ -351,9 +410,11 @@ const styles = StyleSheet.create({
   reciterItemInfo: { flex: 1 },
   reciterItemName: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   reciterItemSub: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 1 },
-  nowPlaying: { alignItems: "center", paddingVertical: 12, paddingHorizontal: 16 },
+  nowPlaying: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 12, paddingHorizontal: 16 },
+  npLeft: { flex: 1, gap: 3 },
   npTitle: { fontSize: 15, fontFamily: "Inter_700Bold" },
-  npSub: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 3 },
+  npSub: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  waveform: { flexDirection: "row", alignItems: "center", gap: 3, height: 28 },
   progressTrack: { height: 4, marginHorizontal: 16, borderRadius: 2, overflow: "hidden" },
   progressFill: { height: "100%", borderRadius: 2 },
   timeRow: { flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 16, marginTop: 6 },
