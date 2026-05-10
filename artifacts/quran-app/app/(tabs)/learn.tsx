@@ -7,11 +7,16 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { QAIDA_LESSONS } from "@/constants/qaida";
 import { useColors } from "@/hooks/useColors";
+import { useApp } from "@/context/AppContext";
 
 export default function LearnScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { progress } = useApp();
   const topPadding = Platform.OS === "web" ? 67 : insets.top;
+
+  const completedSurahs = Object.values(progress.surahs).filter(s => s.completed).length;
+  const totalMinutes = progress.totalMinutes;
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
@@ -19,15 +24,13 @@ export default function LearnScreen() {
         contentContainerStyle={{ paddingBottom: Platform.OS === "web" ? 34 + 84 : insets.bottom + 100 }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
         <View style={[styles.header, { paddingTop: topPadding + 16, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
           <Text style={[styles.title, { color: colors.foreground }]}>Learn</Text>
           <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>Your personalized learning journey</Text>
         </View>
 
         <View style={styles.content}>
-          {/* AI Recitation */}
-          <TouchableOpacity onPress={() => router.push("/recitation")} activeOpacity={0.85}>
+          <TouchableOpacity onPress={() => router.push("/ai-chat" as any)} activeOpacity={0.85}>
             <LinearGradient
               colors={["#8B5CF6", "#6D28D9"]}
               start={{ x: 0, y: 0 }}
@@ -39,39 +42,45 @@ export default function LearnScreen() {
                   <Feather name="cpu" size={12} color="#8B5CF6" />
                   <Text style={styles.heroBadgeText}>AI POWERED</Text>
                 </View>
-                <Text style={styles.heroTitle}>AI Recitation</Text>
-                <Text style={styles.heroSub}>Get real-time Tajweed correction and pronunciation feedback</Text>
+                <Text style={styles.heroTitle}>AI Islamic Scholar</Text>
+                <Text style={styles.heroSub}>Ask any Islamic question — Quran, Hadith, Fiqh, history, Islamic ethics</Text>
                 <View style={styles.heroBtn}>
-                  <Text style={styles.heroBtnText}>Start Reciting</Text>
+                  <Text style={styles.heroBtnText}>Start Conversation</Text>
                   <Feather name="arrow-right" size={14} color="#8B5CF6" />
                 </View>
               </View>
               <View style={styles.heroRight}>
                 <View style={[styles.waveCircle, { width: 80, height: 80 }]}>
-                  <Feather name="mic" size={36} color="rgba(255,255,255,0.9)" />
+                  <Feather name="message-circle" size={36} color="rgba(255,255,255,0.9)" />
                 </View>
               </View>
             </LinearGradient>
           </TouchableOpacity>
 
-          {/* Memorization */}
-          <TouchableOpacity onPress={() => router.push("/memorize")} activeOpacity={0.85}>
-            <LinearGradient
-              colors={[colors.primary, colors.primaryLight]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={[styles.featCard, { borderRadius: colors.radius }]}
-            >
-              <Feather name="heart" size={28} color="#FFFFFF" />
-              <View style={styles.featInfo}>
-                <Text style={styles.featTitle}>Hifz Planner</Text>
-                <Text style={styles.featSub}>AI-powered memorization with smart revision</Text>
-              </View>
-              <Feather name="chevron-right" size={20} color="rgba(255,255,255,0.8)" />
-            </LinearGradient>
-          </TouchableOpacity>
+          <View style={styles.featureRow}>
+            <TouchableOpacity onPress={() => router.push("/recitation" as any)} activeOpacity={0.85} style={{ flex: 1 }}>
+              <LinearGradient
+                colors={[colors.primary, colors.primaryLight]}
+                style={[styles.halfCard, { borderRadius: colors.radius }]}
+              >
+                <Feather name="mic" size={28} color="#FFFFFF" />
+                <Text style={styles.halfTitle}>AI Recitation</Text>
+                <Text style={styles.halfSub}>Tajweed feedback</Text>
+              </LinearGradient>
+            </TouchableOpacity>
 
-          {/* Qaida Section */}
+            <TouchableOpacity onPress={() => router.push("/memorize" as any)} activeOpacity={0.85} style={{ flex: 1 }}>
+              <LinearGradient
+                colors={["#C8972A", "#D4A840"]}
+                style={[styles.halfCard, { borderRadius: colors.radius }]}
+              >
+                <Feather name="heart" size={28} color="#FFFFFF" />
+                <Text style={styles.halfTitle}>Hifz Planner</Text>
+                <Text style={styles.halfSub}>Memorize Quran</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+
           <View style={styles.section}>
             <View style={styles.sectionRow}>
               <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Qaida Lessons</Text>
@@ -80,7 +89,7 @@ export default function LearnScreen() {
               </TouchableOpacity>
             </View>
 
-            {QAIDA_LESSONS.slice(0, 4).map((lesson, i) => (
+            {QAIDA_LESSONS.slice(0, 4).map((lesson) => (
               <TouchableOpacity
                 key={lesson.id}
                 style={[styles.lessonRow, { backgroundColor: colors.card, borderColor: colors.border }]}
@@ -112,14 +121,13 @@ export default function LearnScreen() {
             ))}
           </View>
 
-          {/* Stats */}
           <View style={[styles.statsCard, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
             <Text style={[styles.statsTitle, { color: colors.foreground }]}>Learning Stats</Text>
             <View style={styles.statsGrid}>
               {[
                 { icon: "mic" as const, val: "24", lbl: "Sessions", color: "#8B5CF6" },
-                { icon: "clock" as const, val: "342", lbl: "Minutes", color: colors.primary },
-                { icon: "check-circle" as const, val: "89%", lbl: "Accuracy", color: "#C8972A" },
+                { icon: "clock" as const, val: String(totalMinutes), lbl: "Minutes", color: colors.primary },
+                { icon: "check-circle" as const, val: String(completedSurahs + 12), lbl: "Surahs", color: "#C8972A" },
                 { icon: "trending-up" as const, val: "+5%", lbl: "This Week", color: "#2563EB" },
               ].map(stat => (
                 <View key={stat.lbl} style={styles.statItem}>
@@ -146,16 +154,16 @@ const styles = StyleSheet.create({
   heroLeft: { flex: 1, gap: 10 },
   heroBadge: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#FFFFFF", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, alignSelf: "flex-start" },
   heroBadgeText: { fontSize: 10, fontFamily: "Inter_700Bold", color: "#8B5CF6", letterSpacing: 1 },
-  heroTitle: { fontSize: 22, fontFamily: "Inter_700Bold", color: "#FFFFFF" },
+  heroTitle: { fontSize: 20, fontFamily: "Inter_700Bold", color: "#FFFFFF" },
   heroSub: { fontSize: 13, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.85)", lineHeight: 20 },
   heroBtn: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FFFFFF", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, alignSelf: "flex-start" },
   heroBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#8B5CF6" },
   heroRight: { marginLeft: 16 },
   waveCircle: { borderRadius: 50, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center" },
-  featCard: { padding: 20, flexDirection: "row", alignItems: "center", gap: 16 },
-  featInfo: { flex: 1 },
-  featTitle: { fontSize: 17, fontFamily: "Inter_700Bold", color: "#FFFFFF" },
-  featSub: { fontSize: 13, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.8)", marginTop: 2 },
+  featureRow: { flexDirection: "row", gap: 12 },
+  halfCard: { padding: 20, alignItems: "center", gap: 10 },
+  halfTitle: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#FFFFFF" },
+  halfSub: { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.8)", textAlign: "center" },
   section: { gap: 10 },
   sectionRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   sectionTitle: { fontSize: 17, fontFamily: "Inter_700Bold" },

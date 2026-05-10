@@ -12,13 +12,20 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useQuery } from "@tanstack/react-query";
 
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useQuranSurahs } from "@/hooks/useQuranSurahs";
-import { ApiSurah } from "@/services/quranApi";
+import { ApiSurah, fetchJuzAyahs } from "@/services/quranApi";
 
 const TABS = ["Surah", "Juz", "Bookmarks"];
+
+const JUZ_DATA = Array.from({ length: 30 }, (_, i) => ({
+  number: i + 1,
+  name: `Juz ${i + 1}`,
+  arabicName: `الجزء ${i + 1}`,
+}));
 
 function SurahItem({ item, onPress, progress, isBookmarked }: {
   item: ApiSurah;
@@ -39,9 +46,7 @@ function SurahItem({ item, onPress, progress, isBookmarked }: {
       <View style={styles.surahInfo}>
         <View style={styles.surahNameRow}>
           <Text style={[styles.surahName, { color: colors.foreground }]}>{item.englishName}</Text>
-          {isBookmarked && (
-            <Feather name="bookmark" size={12} color={colors.accent} />
-          )}
+          {isBookmarked && <Feather name="bookmark" size={12} color={colors.accent} />}
         </View>
         <Text style={[styles.surahMeta, { color: colors.mutedForeground }]}>
           {item.englishNameTranslation} • {item.numberOfAyahs} Ayahs • {item.revelationType}
@@ -54,6 +59,92 @@ function SurahItem({ item, onPress, progress, isBookmarked }: {
       </View>
       <Text style={[styles.arabicName, { color: colors.primary }]}>{item.name}</Text>
     </TouchableOpacity>
+  );
+}
+
+function JuzView() {
+  const colors = useColors();
+  const [selectedJuz, setSelectedJuz] = useState<number | null>(null);
+
+  const { data: juzSurahs, isLoading } = useQuery({
+    queryKey: ["juz", selectedJuz],
+    queryFn: () => fetchJuzAyahs(selectedJuz!),
+    enabled: selectedJuz !== null,
+    staleTime: 1000 * 60 * 60,
+  });
+
+  if (!selectedJuz) {
+    return (
+      <FlatList
+        data={JUZ_DATA}
+        keyExtractor={item => String(item.number)}
+        contentContainerStyle={{ paddingBottom: 120 }}
+        renderItem={({ item }) => (
+          <TouchableOpacity
+            style={[styles.juzRow, { borderBottomColor: colors.border }]}
+            onPress={() => setSelectedJuz(item.number)}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.juzBadge, { backgroundColor: colors.secondary }]}>
+              <Text style={[styles.juzBadgeText, { color: colors.primary }]}>{item.number}</Text>
+            </View>
+            <View style={styles.juzInfo}>
+              <Text style={[styles.juzName, { color: colors.foreground }]}>{item.name}</Text>
+              <Text style={[styles.juzArabic, { color: colors.primary }]}>{item.arabicName}</Text>
+            </View>
+            <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+          </TouchableOpacity>
+        )}
+      />
+    );
+  }
+
+  return (
+    <View style={{ flex: 1 }}>
+      <TouchableOpacity
+        style={[styles.juzBackRow, { backgroundColor: colors.secondary, borderBottomColor: colors.border }]}
+        onPress={() => setSelectedJuz(null)}
+      >
+        <Feather name="chevron-left" size={18} color={colors.primary} />
+        <Text style={[styles.juzBackText, { color: colors.primary }]}>Juz {selectedJuz}</Text>
+      </TouchableOpacity>
+
+      {isLoading ? (
+        <View style={styles.loadingState}>
+          <ActivityIndicator color={colors.primary} />
+          <Text style={[styles.loadingText, { color: colors.mutedForeground }]}>Loading Juz {selectedJuz}...</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={juzSurahs ?? []}
+          keyExtractor={item => String(item.surah.number)}
+          contentContainerStyle={{ paddingBottom: 120 }}
+          ListEmptyComponent={
+            <View style={styles.emptyState}>
+              <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No data available for this Juz</Text>
+            </View>
+          }
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={[styles.surahRow, { borderBottomColor: colors.border }]}
+              onPress={() => router.push(`/surah/${item.surah.number}` as any)}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.numBadge, { backgroundColor: colors.secondary }]}>
+                <Text style={[styles.numText, { color: colors.primary }]}>{item.surah.number}</Text>
+              </View>
+              <View style={styles.surahInfo}>
+                <Text style={[styles.surahName, { color: colors.foreground }]}>{item.surah.englishName}</Text>
+                <Text style={[styles.surahMeta, { color: colors.mutedForeground }]}>
+                  Ayahs {item.firstAyah}–{item.lastAyah} in this Juz
+                </Text>
+              </View>
+              <Text style={[styles.arabicName, { color: colors.primary }]}>{item.surah.name}</Text>
+            </TouchableOpacity>
+          )}
+        />
+      )}
+    </View>
   );
 }
 
@@ -83,15 +174,10 @@ export default function QuranScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
-      {/* Header */}
       <View
         style={[
           styles.header,
-          {
-            paddingTop: topPadding + 16,
-            backgroundColor: colors.card,
-            borderBottomColor: colors.border,
-          },
+          { paddingTop: topPadding + 16, backgroundColor: colors.card, borderBottomColor: colors.border },
         ]}
       >
         <View style={styles.headerRow}>
@@ -109,24 +195,24 @@ export default function QuranScreen() {
           )}
         </View>
 
-        {/* Search */}
-        <View style={[styles.searchBox, { backgroundColor: colors.muted, borderColor: colors.border }]}>
-          <Feather name="search" size={16} color={colors.mutedForeground} />
-          <TextInput
-            style={[styles.searchInput, { color: colors.foreground }]}
-            placeholder="Search by name or number..."
-            placeholderTextColor={colors.mutedForeground}
-            value={search}
-            onChangeText={setSearch}
-          />
-          {!!search && (
-            <TouchableOpacity onPress={() => setSearch("")}>
-              <Feather name="x" size={16} color={colors.mutedForeground} />
-            </TouchableOpacity>
-          )}
-        </View>
+        {activeTab !== 1 && (
+          <View style={[styles.searchBox, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+            <Feather name="search" size={16} color={colors.mutedForeground} />
+            <TextInput
+              style={[styles.searchInput, { color: colors.foreground }]}
+              placeholder="Search by name or number..."
+              placeholderTextColor={colors.mutedForeground}
+              value={search}
+              onChangeText={setSearch}
+            />
+            {!!search && (
+              <TouchableOpacity onPress={() => setSearch("")}>
+                <Feather name="x" size={16} color={colors.mutedForeground} />
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
 
-        {/* Tabs */}
         <View style={[styles.tabRow, { backgroundColor: colors.muted }]}>
           {TABS.map((tab, i) => (
             <TouchableOpacity
@@ -134,12 +220,7 @@ export default function QuranScreen() {
               style={[styles.tabItem, activeTab === i && { backgroundColor: colors.primary }]}
               onPress={() => setActiveTab(i)}
             >
-              <Text
-                style={[
-                  styles.tabText,
-                  { color: activeTab === i ? "#FFFFFF" : colors.mutedForeground },
-                ]}
-              >
+              <Text style={[styles.tabText, { color: activeTab === i ? "#FFFFFF" : colors.mutedForeground }]}>
                 {tab}
               </Text>
             </TouchableOpacity>
@@ -147,41 +228,48 @@ export default function QuranScreen() {
         </View>
       </View>
 
-      <FlatList
-        data={displayed}
-        keyExtractor={(item) => String(item.number)}
-        renderItem={({ item }) => (
-          <SurahItem
-            item={item}
-            onPress={() => router.push(`/surah/${item.number}` as any)}
-            progress={progress.surahs[item.number]?.progress}
-            isBookmarked={bookmarks.some((b) => Math.floor(b / 1000) === item.number)}
-          />
-        )}
-        contentContainerStyle={{
-          paddingBottom: Platform.OS === "web" ? 34 + 84 : insets.bottom + 100,
-        }}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          <View style={styles.empty}>
-            {isLoading ? (
-              <>
-                <ActivityIndicator size="large" color={colors.primary} />
-                <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-                  Loading surahs from Quran API...
-                </Text>
-              </>
-            ) : (
-              <>
-                <Feather name="search" size={32} color={colors.mutedForeground} />
-                <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-                  No surahs found
-                </Text>
-              </>
-            )}
-          </View>
-        }
-      />
+      {activeTab === 1 ? (
+        <JuzView />
+      ) : (
+        <FlatList
+          data={displayed}
+          keyExtractor={(item) => String(item.number)}
+          renderItem={({ item }) => (
+            <SurahItem
+              item={item}
+              onPress={() => router.push(`/surah/${item.number}` as any)}
+              progress={progress.surahs[item.number]?.progress}
+              isBookmarked={bookmarks.some((b) => Math.floor(b / 1000) === item.number)}
+            />
+          )}
+          contentContainerStyle={{ paddingBottom: Platform.OS === "web" ? 34 + 84 : insets.bottom + 100 }}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
+            <View style={styles.empty}>
+              {isLoading ? (
+                <>
+                  <ActivityIndicator size="large" color={colors.primary} />
+                  <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+                    Loading surahs from Quran API...
+                  </Text>
+                </>
+              ) : activeTab === 2 ? (
+                <>
+                  <Feather name="bookmark" size={32} color={colors.mutedForeground} />
+                  <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+                    No bookmarks yet. Bookmark ayahs while reading.
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <Feather name="search" size={32} color={colors.mutedForeground} />
+                  <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No surahs found</Text>
+                </>
+              )}
+            </View>
+          }
+        />
+      )}
     </View>
   );
 }
@@ -208,5 +296,16 @@ const styles = StyleSheet.create({
   progressFill: { height: "100%", borderRadius: 2 },
   arabicName: { fontSize: 20, fontWeight: "400" },
   empty: { alignItems: "center", paddingTop: 60, gap: 14 },
-  emptyText: { fontSize: 15, fontFamily: "Inter_400Regular" },
+  emptyText: { fontSize: 15, fontFamily: "Inter_400Regular", textAlign: "center", paddingHorizontal: 30 },
+  juzRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, gap: 14 },
+  juzBadge: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
+  juzBadgeText: { fontSize: 14, fontFamily: "Inter_700Bold" },
+  juzInfo: { flex: 1 },
+  juzName: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  juzArabic: { fontSize: 18, fontWeight: "400", marginTop: 2 },
+  juzBackRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 1 },
+  juzBackText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  loadingState: { flex: 1, alignItems: "center", justifyContent: "center", gap: 14 },
+  loadingText: { fontSize: 14, fontFamily: "Inter_400Regular" },
+  emptyState: { alignItems: "center", paddingTop: 40 },
 });

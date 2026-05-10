@@ -1,11 +1,13 @@
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import React from "react";
-import { Platform, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from "react-native";
+import { router } from "expo-router";
+import React, { useState } from "react";
+import { Alert, Modal, Platform, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
+import { TRANSLATION_OPTIONS } from "@/services/quranApi";
 
 const BADGES = [
   { icon: "zap" as const, label: "7-Day Streak", color: "#FF6B2B", earned: true },
@@ -16,23 +18,24 @@ const BADGES = [
   { icon: "award" as const, label: "Quran Finisher", color: "#2563EB", earned: false },
 ];
 
-const SETTINGS = [
-  { icon: "bell" as const, label: "Prayer Reminders" },
-  { icon: "volume-2" as const, label: "Audio Settings" },
-  { icon: "type" as const, label: "Font Size" },
-  { icon: "globe" as const, label: "Language" },
-  { icon: "shield" as const, label: "Privacy" },
-  { icon: "help-circle" as const, label: "Help & Support" },
-];
+const FONT_SIZES = [18, 20, 22, 24, 26, 28, 32];
 
 export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { progress, isDarkMode, toggleDarkMode } = useApp();
+  const { progress, isDarkMode, toggleDarkMode, fontSize, setFontSize, translationLang, setTranslationLang, userName, setUserName, dailyGoalMinutes, setDailyGoalMinutes } = useApp();
   const topPadding = Platform.OS === "web" ? 67 : insets.top;
+
+  const [nameModalVisible, setNameModalVisible] = useState(false);
+  const [langModalVisible, setLangModalVisible] = useState(false);
+  const [fontModalVisible, setFontModalVisible] = useState(false);
+  const [goalModalVisible, setGoalModalVisible] = useState(false);
+  const [tempName, setTempName] = useState(userName);
 
   const xpToNext = 500 - (progress.xp % 500);
   const xpProgress = ((progress.xp % 500) / 500) * 100;
+
+  const currentLang = TRANSLATION_OPTIONS.find(t => t.id === translationLang) ?? TRANSLATION_OPTIONS[0]!;
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
@@ -40,23 +43,24 @@ export default function ProfileScreen() {
         contentContainerStyle={{ paddingBottom: Platform.OS === "web" ? 34 + 84 : insets.bottom + 100 }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Profile Header */}
         <LinearGradient
           colors={[colors.primary, colors.primaryLight]}
           style={[styles.profileHeader, { paddingTop: topPadding + 20 }]}
         >
           <View style={styles.avatarContainer}>
             <View style={[styles.avatar, { backgroundColor: "rgba(255,255,255,0.2)" }]}>
-              <Feather name="user" size={36} color="#FFFFFF" />
+              <Text style={styles.avatarInitial}>{(userName[0] ?? "A").toUpperCase()}</Text>
             </View>
-            <TouchableOpacity style={[styles.editBtn, { backgroundColor: colors.accent }]}>
+            <TouchableOpacity
+              style={[styles.editBtn, { backgroundColor: colors.accent }]}
+              onPress={() => { setTempName(userName); setNameModalVisible(true); }}
+            >
               <Feather name="edit-2" size={12} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
-          <Text style={styles.userName}>Ahmad Al-Rashid</Text>
+          <Text style={styles.userName}>{userName}</Text>
           <Text style={styles.userTitle}>Level {progress.level} Learner</Text>
 
-          {/* XP Bar */}
           <View style={styles.xpContainer}>
             <View style={styles.xpRow}>
               <Text style={styles.xpLabel}>Lv. {progress.level}</Text>
@@ -69,7 +73,6 @@ export default function ProfileScreen() {
           </View>
         </LinearGradient>
 
-        {/* Quick Stats */}
         <View style={[styles.statsRow, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
           {[
             { val: progress.streak, lbl: "Day Streak", icon: "zap" as const, color: "#FF6B2B" },
@@ -85,7 +88,6 @@ export default function ProfileScreen() {
         </View>
 
         <View style={styles.content}>
-          {/* Badges */}
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Achievements</Text>
             <View style={styles.badgesGrid}>
@@ -109,7 +111,6 @@ export default function ProfileScreen() {
             </View>
           </View>
 
-          {/* Premium Card */}
           <LinearGradient
             colors={["#C8972A", "#F0BB54"]}
             start={{ x: 0, y: 0 }}
@@ -119,16 +120,15 @@ export default function ProfileScreen() {
             <Feather name="star" size={24} color="#FFFFFF" />
             <View style={styles.premiumInfo}>
               <Text style={styles.premiumTitle}>Upgrade to Premium</Text>
-              <Text style={styles.premiumSub}>AI corrections, offline Quran, advanced analytics</Text>
+              <Text style={styles.premiumSub}>Offline Quran, advanced analytics, ad-free</Text>
             </View>
             <Feather name="chevron-right" size={20} color="#FFFFFF" />
           </LinearGradient>
 
-          {/* Settings */}
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Settings</Text>
             <View style={[styles.settingsList, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <View style={[styles.settingRow, { borderBottomColor: colors.border }]}>
+              <View style={[styles.settingRow, { borderBottomColor: colors.border, borderBottomWidth: 1 }]}>
                 <View style={styles.settingLeft}>
                   <Feather name="moon" size={18} color={colors.primary} />
                   <Text style={[styles.settingLabel, { color: colors.foreground }]}>Dark Mode</Text>
@@ -141,23 +141,210 @@ export default function ProfileScreen() {
                 />
               </View>
 
-              {SETTINGS.map((s, i) => (
-                <TouchableOpacity
-                  key={s.label}
-                  style={[styles.settingRow, i < SETTINGS.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border }]}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.settingLeft}>
-                    <Feather name={s.icon} size={18} color={colors.primary} />
-                    <Text style={[styles.settingLabel, { color: colors.foreground }]}>{s.label}</Text>
-                  </View>
+              <TouchableOpacity
+                style={[styles.settingRow, { borderBottomColor: colors.border, borderBottomWidth: 1 }]}
+                onPress={() => setFontModalVisible(true)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.settingLeft}>
+                  <Feather name="type" size={18} color={colors.primary} />
+                  <Text style={[styles.settingLabel, { color: colors.foreground }]}>Arabic Font Size</Text>
+                </View>
+                <View style={styles.settingRight}>
+                  <Text style={[styles.settingValue, { color: colors.mutedForeground }]}>{fontSize}px</Text>
                   <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.settingRow, { borderBottomColor: colors.border, borderBottomWidth: 1 }]}
+                onPress={() => setLangModalVisible(true)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.settingLeft}>
+                  <Feather name="globe" size={18} color={colors.primary} />
+                  <Text style={[styles.settingLabel, { color: colors.foreground }]}>Translation Language</Text>
+                </View>
+                <View style={styles.settingRight}>
+                  <Text style={[styles.settingValue, { color: colors.mutedForeground }]}>
+                    {currentLang.flag} {currentLang.label.split(" ")[0]}
+                  </Text>
+                  <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.settingRow, { borderBottomColor: colors.border, borderBottomWidth: 1 }]}
+                onPress={() => setGoalModalVisible(true)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.settingLeft}>
+                  <Feather name="target" size={18} color={colors.primary} />
+                  <Text style={[styles.settingLabel, { color: colors.foreground }]}>Daily Goal</Text>
+                </View>
+                <View style={styles.settingRight}>
+                  <Text style={[styles.settingValue, { color: colors.mutedForeground }]}>{dailyGoalMinutes} min</Text>
+                  <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.settingRow, { borderBottomColor: colors.border, borderBottomWidth: 1 }]}
+                onPress={() => router.push("/ai-chat" as any)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.settingLeft}>
+                  <Feather name="cpu" size={18} color="#8B5CF6" />
+                  <Text style={[styles.settingLabel, { color: colors.foreground }]}>AI Islamic Scholar</Text>
+                </View>
+                <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.settingRow, { borderBottomColor: colors.border, borderBottomWidth: 1 }]}
+                onPress={() => router.push("/zakat" as any)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.settingLeft}>
+                  <Feather name="dollar-sign" size={18} color={colors.primary} />
+                  <Text style={[styles.settingLabel, { color: colors.foreground }]}>Zakat Calculator</Text>
+                </View>
+                <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.settingRow} activeOpacity={0.7}>
+                <View style={styles.settingLeft}>
+                  <Feather name="help-circle" size={18} color={colors.primary} />
+                  <Text style={[styles.settingLabel, { color: colors.foreground }]}>Help & Support</Text>
+                </View>
+                <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </ScrollView>
+
+      <Modal visible={nameModalVisible} animationType="slide" transparent onRequestClose={() => setNameModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalSheet, { backgroundColor: colors.background }]}>
+            <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
+            <View style={styles.modalHeaderRow}>
+              <Text style={[styles.modalTitle, { color: colors.foreground }]}>Edit Name</Text>
+              <TouchableOpacity onPress={() => setNameModalVisible(false)}>
+                <Feather name="x" size={22} color={colors.mutedForeground} />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.modalContent}>
+              <TextInput
+                style={[styles.nameInput, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border }]}
+                value={tempName}
+                onChangeText={setTempName}
+                placeholder="Enter your name"
+                placeholderTextColor={colors.mutedForeground}
+              />
+              <TouchableOpacity
+                style={[styles.saveBtn, { backgroundColor: colors.primary }]}
+                onPress={() => { setUserName(tempName); setNameModalVisible(false); }}
+              >
+                <Text style={styles.saveBtnText}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={fontModalVisible} animationType="slide" transparent onRequestClose={() => setFontModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalSheet, { backgroundColor: colors.background }]}>
+            <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
+            <View style={styles.modalHeaderRow}>
+              <Text style={[styles.modalTitle, { color: colors.foreground }]}>Arabic Font Size</Text>
+              <TouchableOpacity onPress={() => setFontModalVisible(false)}>
+                <Feather name="x" size={22} color={colors.mutedForeground} />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.modalContent}>
+              <Text style={[styles.fontPreview, { color: colors.foreground, fontSize }]}>بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</Text>
+              <View style={styles.fontGrid}>
+                {FONT_SIZES.map(size => (
+                  <TouchableOpacity
+                    key={size}
+                    style={[
+                      styles.fontOption,
+                      { backgroundColor: fontSize === size ? colors.primary : colors.card, borderColor: fontSize === size ? colors.primary : colors.border }
+                    ]}
+                    onPress={() => setFontSize(size)}
+                  >
+                    <Text style={[styles.fontOptionText, { color: fontSize === size ? "#FFFFFF" : colors.foreground }]}>{size}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={langModalVisible} animationType="slide" transparent onRequestClose={() => setLangModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalSheet, { backgroundColor: colors.background }]}>
+            <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
+            <View style={styles.modalHeaderRow}>
+              <Text style={[styles.modalTitle, { color: colors.foreground }]}>Translation Language</Text>
+              <TouchableOpacity onPress={() => setLangModalVisible(false)}>
+                <Feather name="x" size={22} color={colors.mutedForeground} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{ maxHeight: 400 }} contentContainerStyle={{ padding: 16, gap: 8 }}>
+              {TRANSLATION_OPTIONS.map(item => (
+                <TouchableOpacity
+                  key={item.id}
+                  style={[
+                    styles.langOption,
+                    { backgroundColor: translationLang === item.id ? colors.secondary : colors.card, borderColor: translationLang === item.id ? colors.primary : colors.border }
+                  ]}
+                  onPress={() => { setTranslationLang(item.id); setLangModalVisible(false); }}
+                >
+                  <Text style={{ fontSize: 22 }}>{item.flag}</Text>
+                  <Text style={[styles.langLabel, { color: translationLang === item.id ? colors.primary : colors.foreground }]}>{item.label}</Text>
+                  {translationLang === item.id && <Feather name="check" size={16} color={colors.primary} />}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={goalModalVisible} animationType="slide" transparent onRequestClose={() => setGoalModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalSheet, { backgroundColor: colors.background }]}>
+            <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
+            <View style={styles.modalHeaderRow}>
+              <Text style={[styles.modalTitle, { color: colors.foreground }]}>Daily Goal</Text>
+              <TouchableOpacity onPress={() => setGoalModalVisible(false)}>
+                <Feather name="x" size={22} color={colors.mutedForeground} />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.modalContent}>
+              {[10, 15, 20, 30, 45, 60].map(mins => (
+                <TouchableOpacity
+                  key={mins}
+                  style={[
+                    styles.goalOption,
+                    { backgroundColor: dailyGoalMinutes === mins ? colors.secondary : colors.card, borderColor: dailyGoalMinutes === mins ? colors.primary : colors.border }
+                  ]}
+                  onPress={() => { setDailyGoalMinutes(mins); setGoalModalVisible(false); }}
+                >
+                  <Feather name="clock" size={18} color={dailyGoalMinutes === mins ? colors.primary : colors.mutedForeground} />
+                  <Text style={[styles.goalOptionText, { color: dailyGoalMinutes === mins ? colors.primary : colors.foreground }]}>
+                    {mins} minutes per day
+                  </Text>
+                  {dailyGoalMinutes === mins && <Feather name="check" size={16} color={colors.primary} />}
                 </TouchableOpacity>
               ))}
             </View>
           </View>
         </View>
-      </ScrollView>
+      </Modal>
     </View>
   );
 }
@@ -167,6 +354,7 @@ const styles = StyleSheet.create({
   profileHeader: { paddingHorizontal: 20, paddingBottom: 28, alignItems: "center" },
   avatarContainer: { position: "relative", marginBottom: 14 },
   avatar: { width: 84, height: 84, borderRadius: 42, alignItems: "center", justifyContent: "center", borderWidth: 3, borderColor: "rgba(255,255,255,0.3)" },
+  avatarInitial: { color: "#FFFFFF", fontSize: 32, fontFamily: "Inter_700Bold" },
   editBtn: { position: "absolute", right: 0, bottom: 0, width: 26, height: 26, borderRadius: 13, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "#FFFFFF" },
   userName: { color: "#FFFFFF", fontSize: 22, fontFamily: "Inter_700Bold" },
   userTitle: { color: "rgba(255,255,255,0.8)", fontSize: 14, fontFamily: "Inter_400Regular", marginTop: 4, marginBottom: 20 },
@@ -194,5 +382,24 @@ const styles = StyleSheet.create({
   settingsList: { borderRadius: 16, borderWidth: 1, overflow: "hidden" },
   settingRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 16, paddingVertical: 14 },
   settingLeft: { flexDirection: "row", alignItems: "center", gap: 14 },
+  settingRight: { flexDirection: "row", alignItems: "center", gap: 6 },
   settingLabel: { fontSize: 14, fontFamily: "Inter_500Medium" },
+  settingValue: { fontSize: 13, fontFamily: "Inter_400Regular" },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
+  modalSheet: { borderTopLeftRadius: 28, borderTopRightRadius: 28, maxHeight: "80%", minHeight: "30%" },
+  modalHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: "center", marginTop: 12, marginBottom: 8 },
+  modalHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, paddingBottom: 12 },
+  modalTitle: { fontSize: 18, fontFamily: "Inter_700Bold" },
+  modalContent: { padding: 20, gap: 14 },
+  nameInput: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12, fontSize: 16, fontFamily: "Inter_400Regular" },
+  saveBtn: { paddingVertical: 14, borderRadius: 12, alignItems: "center" },
+  saveBtnText: { color: "#FFFFFF", fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  fontPreview: { textAlign: "center", lineHeight: 56, marginBottom: 8 },
+  fontGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  fontOption: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12, borderWidth: 1 },
+  fontOptionText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  langOption: { flexDirection: "row", alignItems: "center", gap: 14, padding: 14, borderRadius: 14, borderWidth: 1 },
+  langLabel: { flex: 1, fontSize: 15, fontFamily: "Inter_500Medium" },
+  goalOption: { flexDirection: "row", alignItems: "center", gap: 14, padding: 14, borderRadius: 14, borderWidth: 1 },
+  goalOptionText: { flex: 1, fontSize: 15, fontFamily: "Inter_500Medium" },
 });

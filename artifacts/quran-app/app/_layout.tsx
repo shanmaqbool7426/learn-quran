@@ -32,6 +32,9 @@ function RootLayoutNav() {
       <Stack.Screen name="memorize" options={{ headerShown: false }} />
       <Stack.Screen name="qaida" options={{ headerShown: false }} />
       <Stack.Screen name="hadith" options={{ headerShown: false }} />
+      <Stack.Screen name="ai-chat" options={{ headerShown: false }} />
+      <Stack.Screen name="zakat" options={{ headerShown: false }} />
+      <Stack.Screen name="mosque" options={{ headerShown: false }} />
     </Stack>
   );
 }

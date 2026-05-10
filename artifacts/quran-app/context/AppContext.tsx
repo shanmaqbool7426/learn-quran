@@ -10,12 +10,17 @@ interface UserProgress {
   surahs: Record<number, { started: boolean; completed: boolean; progress: number }>;
 }
 
-interface AppContextType {
+export interface AppContextType {
   progress: UserProgress;
   bookmarks: number[];
   lastRead: { surahId: number; ayah: number } | null;
   isDarkMode: boolean;
   tasbeehCount: number;
+  fontSize: number;
+  translationLang: string;
+  userName: string;
+  dailyGoalMinutes: number;
+  sessionMinutes: number;
   addXP: (amount: number) => void;
   toggleBookmark: (ayahId: number) => void;
   setLastRead: (surahId: number, ayah: number) => void;
@@ -23,6 +28,11 @@ interface AppContextType {
   incrementTasbeeh: () => void;
   resetTasbeeh: () => void;
   updateSurahProgress: (surahId: number, progress: number, completed?: boolean) => void;
+  setFontSize: (size: number) => void;
+  setTranslationLang: (lang: string) => void;
+  setUserName: (name: string) => void;
+  addSessionMinutes: (mins: number) => void;
+  setDailyGoalMinutes: (mins: number) => void;
 }
 
 const defaultProgress: UserProgress = {
@@ -42,6 +52,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [lastRead, setLastReadState] = useState<{ surahId: number; ayah: number } | null>({ surahId: 1, ayah: 1 });
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [tasbeehCount, setTasbeehCount] = useState(0);
+  const [fontSize, setFontSizeState] = useState(24);
+  const [translationLang, setTranslationLangState] = useState("en.asad");
+  const [userName, setUserNameState] = useState("Ahmad Al-Rashid");
+  const [dailyGoalMinutes, setDailyGoalMinutesState] = useState(30);
+  const [sessionMinutes, setSessionMinutes] = useState(0);
 
   useEffect(() => {
     loadData();
@@ -49,18 +64,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const loadData = async () => {
     try {
-      const [savedProgress, savedBookmarks, savedLastRead, savedDark, savedTasbeeh] = await Promise.all([
+      const [
+        savedProgress, savedBookmarks, savedLastRead, savedDark,
+        savedTasbeeh, savedFontSize, savedLang, savedName, savedGoal,
+      ] = await Promise.all([
         AsyncStorage.getItem("progress"),
         AsyncStorage.getItem("bookmarks"),
         AsyncStorage.getItem("lastRead"),
         AsyncStorage.getItem("darkMode"),
         AsyncStorage.getItem("tasbeeh"),
+        AsyncStorage.getItem("fontSize"),
+        AsyncStorage.getItem("translationLang"),
+        AsyncStorage.getItem("userName"),
+        AsyncStorage.getItem("dailyGoalMinutes"),
       ]);
       if (savedProgress) setProgress(JSON.parse(savedProgress));
       if (savedBookmarks) setBookmarks(JSON.parse(savedBookmarks));
       if (savedLastRead) setLastReadState(JSON.parse(savedLastRead));
       if (savedDark) setIsDarkMode(JSON.parse(savedDark));
       if (savedTasbeeh) setTasbeehCount(JSON.parse(savedTasbeeh));
+      if (savedFontSize) setFontSizeState(JSON.parse(savedFontSize));
+      if (savedLang) setTranslationLangState(JSON.parse(savedLang));
+      if (savedName) setUserNameState(JSON.parse(savedName));
+      if (savedGoal) setDailyGoalMinutesState(JSON.parse(savedGoal));
     } catch {}
   };
 
@@ -124,6 +150,35 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  const setFontSize = useCallback((size: number) => {
+    setFontSizeState(size);
+    AsyncStorage.setItem("fontSize", JSON.stringify(size));
+  }, []);
+
+  const setTranslationLang = useCallback((lang: string) => {
+    setTranslationLangState(lang);
+    AsyncStorage.setItem("translationLang", JSON.stringify(lang));
+  }, []);
+
+  const setUserName = useCallback((name: string) => {
+    setUserNameState(name);
+    AsyncStorage.setItem("userName", JSON.stringify(name));
+  }, []);
+
+  const addSessionMinutes = useCallback((mins: number) => {
+    setSessionMinutes(prev => prev + mins);
+    setProgress(prev => {
+      const updated = { ...prev, totalMinutes: prev.totalMinutes + mins };
+      AsyncStorage.setItem("progress", JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
+
+  const setDailyGoalMinutes = useCallback((mins: number) => {
+    setDailyGoalMinutesState(mins);
+    AsyncStorage.setItem("dailyGoalMinutes", JSON.stringify(mins));
+  }, []);
+
   return (
     <AppContext.Provider
       value={{
@@ -132,6 +187,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         lastRead,
         isDarkMode,
         tasbeehCount,
+        fontSize,
+        translationLang,
+        userName,
+        dailyGoalMinutes,
+        sessionMinutes,
         addXP,
         toggleBookmark,
         setLastRead,
@@ -139,6 +199,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         incrementTasbeeh,
         resetTasbeeh,
         updateSurahProgress,
+        setFontSize,
+        setTranslationLang,
+        setUserName,
+        addSessionMinutes,
+        setDailyGoalMinutes,
       }}
     >
       {children}

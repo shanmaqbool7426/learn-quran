@@ -7,25 +7,34 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import PrayerTimesCard from "@/components/PrayerTimesCard";
 import { useColors } from "@/hooks/useColors";
+import { useRealPrayerTimes } from "@/hooks/useRealPrayerTimes";
 
 const TOOLS = [
   { icon: "navigation" as const, label: "Qibla", subtitle: "Find direction", color: "#C8972A", route: "/qibla" },
   { icon: "repeat" as const, label: "Tasbeeh", subtitle: "Digital counter", color: "#8B5CF6", route: "/tasbeeh" },
   { icon: "book-open" as const, label: "Duas", subtitle: "Collection", color: "#0D5C3A", route: "/duas" },
   { icon: "book" as const, label: "Hadith", subtitle: "6 major collections", color: "#2563EB", route: "/hadith" },
-  { icon: "dollar-sign" as const, label: "Zakat", subtitle: "Calculator", color: "#D97706", route: "/tools" },
-  { icon: "map-pin" as const, label: "Mosque", subtitle: "Finder", color: "#DC2626", route: "/tools" },
+  { icon: "dollar-sign" as const, label: "Zakat", subtitle: "Calculator", color: "#D97706", route: "/zakat" },
+  { icon: "map-pin" as const, label: "Mosque", subtitle: "Finder", color: "#DC2626", route: "/mosque" },
+  { icon: "cpu" as const, label: "AI Scholar", subtitle: "Islamic Q&A", color: "#8B5CF6", route: "/ai-chat" },
+  { icon: "trending-up" as const, label: "Hifz Plan", subtitle: "Memorize Quran", color: "#22C55E", route: "/memorize" },
 ];
 
 export default function ToolsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const topPadding = Platform.OS === "web" ? 67 : insets.top;
+  const { hijriDate, hijriMonth, hijriYear, gregorianDate } = useRealPrayerTimes();
 
-  const today = new Date();
-  const hijriDay = ((today.getDate() + 9) % 30) + 1;
-  const hijriMonths = ["Muharram", "Safar", "Rabi al-Awwal", "Rabi al-Thani", "Jumada al-Awwal", "Jumada al-Thani", "Rajab", "Sha'ban", "Ramadan", "Shawwal", "Dhu al-Qidah", "Dhu al-Hijjah"];
-  const hijriMonth = hijriMonths[today.getMonth()];
+  const displayDate = hijriDate && hijriMonth
+    ? `${hijriDate} ${hijriMonth} ${hijriYear} AH`
+    : (() => {
+        const today = new Date();
+        const hijriDay = ((today.getDate() + 9) % 30) + 1;
+        const hijriMonths = ["Muharram","Safar","Rabi al-Awwal","Rabi al-Thani","Jumada al-Awwal","Jumada al-Thani","Rajab","Sha'ban","Ramadan","Shawwal","Dhu al-Qidah","Dhu al-Hijjah"];
+        const hijriMonthName = hijriMonths[today.getMonth()] ?? "Ramadan";
+        return `${hijriDay} ${hijriMonthName} 1446 AH`;
+      })();
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
@@ -33,14 +42,12 @@ export default function ToolsScreen() {
         contentContainerStyle={{ paddingBottom: Platform.OS === "web" ? 34 + 84 : insets.bottom + 100 }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
         <View style={[styles.header, { paddingTop: topPadding + 16, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
           <Text style={[styles.title, { color: colors.foreground }]}>Islamic Tools</Text>
           <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>Your spiritual companion</Text>
         </View>
 
         <View style={styles.content}>
-          {/* Islamic Date Banner */}
           <LinearGradient
             colors={[colors.accent, "#D4A840"]}
             start={{ x: 0, y: 0 }}
@@ -49,21 +56,19 @@ export default function ToolsScreen() {
           >
             <View>
               <Text style={styles.dateLabel}>Hijri Date</Text>
-              <Text style={styles.dateValue}>{hijriDay} {hijriMonth}</Text>
-              <Text style={styles.dateSub}>1446 AH</Text>
+              <Text style={styles.dateValue}>{displayDate}</Text>
+              {gregorianDate ? <Text style={styles.dateSub}>{gregorianDate}</Text> : null}
             </View>
             <Feather name="moon" size={44} color="rgba(255,255,255,0.3)" />
           </LinearGradient>
 
-          {/* Prayer Times */}
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Prayer Times</Text>
             <PrayerTimesCard />
           </View>
 
-          {/* Tool Grid */}
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Tools</Text>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Tools & Features</Text>
             <View style={styles.toolGrid}>
               {TOOLS.map(tool => (
                 <TouchableOpacity
@@ -85,18 +90,27 @@ export default function ToolsScreen() {
             </View>
           </View>
 
-          {/* Ramadan Card */}
           <LinearGradient
             colors={["#1A0533", "#3B0764"]}
-            style={[styles.ramadanCard, { borderRadius: colors.radius }]}
+            style={[styles.aiCard, { borderRadius: colors.radius }]}
           >
-            <View>
-              <Text style={styles.ramadanLabel}>Ramadan Mode</Text>
-              <Text style={styles.ramadanTitle}>Special Features</Text>
-              <Text style={styles.ramadanSub}>Suhoor & Iftar times, Tarawih tracker, special duas</Text>
+            <View style={styles.aiCardLeft}>
+              <View style={[styles.aiBadge, { backgroundColor: "#8B5CF6" }]}>
+                <Feather name="cpu" size={12} color="#FFFFFF" />
+                <Text style={styles.aiBadgeText}>AI POWERED</Text>
+              </View>
+              <Text style={styles.aiTitle}>Islamic AI Scholar</Text>
+              <Text style={styles.aiSub}>Ask any Islamic question — Quran, Hadith, Fiqh, history</Text>
+              <TouchableOpacity
+                style={styles.aiBtn}
+                onPress={() => router.push("/ai-chat" as any)}
+              >
+                <Text style={styles.aiBtnText}>Start Conversation</Text>
+                <Feather name="arrow-right" size={14} color="#8B5CF6" />
+              </TouchableOpacity>
             </View>
-            <View style={[styles.ramadanBadge, { backgroundColor: "#C8972A" }]}>
-              <Text style={styles.ramadanBadgeText}>Soon</Text>
+            <View style={[styles.aiIconWrap, { backgroundColor: "rgba(139,92,246,0.2)" }]}>
+              <Feather name="cpu" size={36} color="#8B5CF6" />
             </View>
           </LinearGradient>
         </View>
@@ -113,8 +127,8 @@ const styles = StyleSheet.create({
   content: { padding: 20, gap: 20 },
   dateBanner: { padding: 20, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   dateLabel: { color: "rgba(255,255,255,0.8)", fontSize: 12, fontFamily: "Inter_500Medium", textTransform: "uppercase", letterSpacing: 1 },
-  dateValue: { color: "#FFFFFF", fontSize: 22, fontFamily: "Inter_700Bold", marginTop: 4 },
-  dateSub: { color: "rgba(255,255,255,0.7)", fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 2 },
+  dateValue: { color: "#FFFFFF", fontSize: 20, fontFamily: "Inter_700Bold", marginTop: 4 },
+  dateSub: { color: "rgba(255,255,255,0.7)", fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
   section: { gap: 12 },
   sectionTitle: { fontSize: 17, fontFamily: "Inter_700Bold" },
   toolGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
@@ -122,10 +136,13 @@ const styles = StyleSheet.create({
   toolIconBg: { width: 56, height: 56, alignItems: "center", justifyContent: "center" },
   toolLabel: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   toolSub: { fontSize: 11, fontFamily: "Inter_400Regular" },
-  ramadanCard: { padding: 20, gap: 12 },
-  ramadanLabel: { color: "#C8972A", fontSize: 11, fontFamily: "Inter_700Bold", textTransform: "uppercase", letterSpacing: 1 },
-  ramadanTitle: { color: "#FFFFFF", fontSize: 20, fontFamily: "Inter_700Bold", marginTop: 4 },
-  ramadanSub: { color: "rgba(255,255,255,0.75)", fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 4 },
-  ramadanBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, alignSelf: "flex-start" },
-  ramadanBadgeText: { color: "#FFFFFF", fontSize: 12, fontFamily: "Inter_700Bold" },
+  aiCard: { padding: 20, flexDirection: "row", alignItems: "center", gap: 16 },
+  aiCardLeft: { flex: 1, gap: 10 },
+  aiBadge: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, alignSelf: "flex-start" },
+  aiBadgeText: { fontSize: 10, fontFamily: "Inter_700Bold", color: "#FFFFFF", letterSpacing: 1 },
+  aiTitle: { color: "#FFFFFF", fontSize: 20, fontFamily: "Inter_700Bold" },
+  aiSub: { color: "rgba(255,255,255,0.8)", fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 20 },
+  aiBtn: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FFFFFF", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, alignSelf: "flex-start" },
+  aiBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#8B5CF6" },
+  aiIconWrap: { width: 72, height: 72, borderRadius: 36, alignItems: "center", justifyContent: "center" },
 });
