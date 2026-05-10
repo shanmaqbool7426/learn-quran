@@ -1,5 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
+import * as Haptics from "expo-haptics";
 import React, { useState, useRef } from "react";
 import {
   ActivityIndicator,
@@ -22,11 +23,13 @@ import { useQuranSurah } from "@/hooks/useQuranSurah";
 import { useColors } from "@/hooks/useColors";
 import { AUDIO_CDN, TRANSLATION_OPTIONS } from "@/services/quranApi";
 
+const FONT_SIZES = [18, 20, 22, 24, 26, 28, 32];
+
 export default function SurahScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { setLastRead, fontSize, translationLang, setTranslationLang } = useApp();
+  const { setLastRead, fontSize, setFontSize, translationLang, setTranslationLang } = useApp();
 
   const surahId = parseInt(id ?? "1");
   const [showTranslation, setShowTranslation] = useState(true);
@@ -36,31 +39,46 @@ export default function SurahScreen() {
   const [currentAyahIdx, setCurrentAyahIdx] = useState(0);
   const [playingIdx, setPlayingIdx] = useState<number | null>(null);
   const [langModalVisible, setLangModalVisible] = useState(false);
+  const [fontModalVisible, setFontModalVisible] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
 
-  const currentTranslation = TRANSLATION_OPTIONS.find(t => t.id === translationLang) ?? TRANSLATION_OPTIONS[0]!;
+  const currentTranslation =
+    TRANSLATION_OPTIONS.find((t) => t.id === translationLang) ?? TRANSLATION_OPTIONS[0]!;
 
-  const { data, isLoading, isError } = useQuranSurah(surahId, reciter.edition, translationLang);
+  const { data, isLoading, isError } = useQuranSurah(
+    surahId,
+    reciter.edition,
+    translationLang
+  );
 
   const topPadding = Platform.OS === "web" ? 67 : insets.top;
 
   const audioUrls =
-    data?.audioAyahs.map((a) => a.audio ?? `${AUDIO_CDN}/${reciter.edition}/${a.number}.mp3`) ?? [];
+    data?.audioAyahs.map(
+      (a) => a.audio ?? `${AUDIO_CDN}/${reciter.edition}/${a.number}.mp3`
+    ) ?? [];
 
   const ayahNumbers = data?.arabicAyahs.map((a) => a.numberInSurah) ?? [];
 
-  const surahDescription = data?.surah.revelationType === "Meccan"
-    ? "Meccan Surah — Revealed in Makkah"
-    : "Medinan Surah — Revealed in Madinah";
+  const surahDescription =
+    data?.surah.revelationType === "Meccan"
+      ? "Meccan Surah — Revealed in Makkah"
+      : "Medinan Surah — Revealed in Madinah";
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
+      {/* ── Fixed header ── */}
       <View
         style={[
           styles.header,
-          { paddingTop: topPadding + 12, backgroundColor: colors.card, borderBottomColor: colors.border },
+          {
+            paddingTop: topPadding + 12,
+            backgroundColor: colors.card,
+            borderBottomColor: colors.border,
+          },
         ]}
       >
+        {/* Title row */}
         <View style={styles.headerTop}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
             <Feather name="chevron-left" size={24} color={colors.foreground} />
@@ -80,46 +98,71 @@ export default function SurahScreen() {
           </Text>
         </View>
 
-        <View style={styles.controlsRow}>
+        {/* Controls row 1: display toggles */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.controlsRow}
+        >
+          <ToggleBtn
+            label="Translation"
+            active={showTranslation}
+            onPress={() => setShowTranslation((p) => !p)}
+            colors={colors}
+          />
+          <ToggleBtn
+            label="Transliteration"
+            active={showTranslit}
+            onPress={() => setShowTranslit((p) => !p)}
+            colors={colors}
+          />
+          <ToggleBtn
+            icon="grid"
+            label="Word-by-Word"
+            active={showWordByWord}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              setShowWordByWord((p) => !p);
+            }}
+            colors={colors}
+            accent
+          />
           <TouchableOpacity
-            style={[styles.controlBtn, { backgroundColor: showTranslation ? colors.primary : colors.muted }]}
-            onPress={() => setShowTranslation(p => !p)}
-          >
-            <Text style={[styles.controlText, { color: showTranslation ? "#FFFFFF" : colors.mutedForeground }]}>
-              Translation
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.controlBtn, { backgroundColor: showTranslit ? colors.primary : colors.muted }]}
-            onPress={() => setShowTranslit(p => !p)}
-          >
-            <Text style={[styles.controlText, { color: showTranslit ? "#FFFFFF" : colors.mutedForeground }]}>
-              Transliteration
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.controlBtn, { backgroundColor: colors.muted, flexDirection: "row", gap: 4 }]}
+            style={[
+              styles.controlBtn,
+              { backgroundColor: colors.muted, flexDirection: "row", gap: 4 },
+            ]}
             onPress={() => setLangModalVisible(true)}
           >
-            <Text style={{ fontSize: 12 }}>{currentTranslation.flag}</Text>
+            <Text style={{ fontSize: 13 }}>{currentTranslation.flag}</Text>
             <Text style={[styles.controlText, { color: colors.mutedForeground }]}>
               {currentTranslation.label.split(" ")[0]}
             </Text>
+            <Feather name="chevron-down" size={11} color={colors.mutedForeground} />
           </TouchableOpacity>
-        </View>
-
-        <View style={styles.fontRow}>
-          <Text style={[styles.fontLabel, { color: colors.mutedForeground }]}>Arabic font:</Text>
           <TouchableOpacity
-            style={[styles.fontBtn, { backgroundColor: colors.muted }]}
-            onPress={() => { if (fontSize > 18) { /* handled in context */} }}
+            style={[styles.controlBtn, { backgroundColor: colors.muted, flexDirection: "row", gap: 4 }]}
+            onPress={() => setFontModalVisible(true)}
           >
             <Feather name="type" size={12} color={colors.mutedForeground} />
-            <Text style={[styles.fontBtnText, { color: colors.mutedForeground }]}>{fontSize}px</Text>
+            <Text style={[styles.controlText, { color: colors.mutedForeground }]}>
+              {fontSize}px
+            </Text>
           </TouchableOpacity>
-        </View>
+        </ScrollView>
+
+        {/* Word-by-word banner when active */}
+        {showWordByWord && (
+          <View style={[styles.wbwBanner, { backgroundColor: colors.primary + "12", borderColor: colors.primary + "30" }]}>
+            <Feather name="grid" size={13} color={colors.primary} />
+            <Text style={[styles.wbwBannerText, { color: colors.primary }]}>
+              Word-by-Word mode — tap any ayah's grid icon or use the button below the Arabic text
+            </Text>
+          </View>
+        )}
       </View>
 
+      {/* ── Audio player ── */}
       {data && (
         <AudioPlayer
           audioUrls={audioUrls}
@@ -143,7 +186,9 @@ export default function SurahScreen() {
       {isLoading && (
         <View style={styles.loadingState}>
           <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={[styles.loadingText, { color: colors.mutedForeground }]}>Loading Quran data...</Text>
+          <Text style={[styles.loadingText, { color: colors.mutedForeground }]}>
+            Loading Quran data...
+          </Text>
         </View>
       )}
 
@@ -156,6 +201,7 @@ export default function SurahScreen() {
         </View>
       )}
 
+      {/* ── Ayah list ── */}
       <ScrollView
         ref={scrollRef}
         contentContainerStyle={{
@@ -167,12 +213,18 @@ export default function SurahScreen() {
           if (!data) return;
           const progress =
             nativeEvent.contentOffset.y /
-            Math.max(1, nativeEvent.contentSize.height - nativeEvent.layoutMeasurement.height);
-          const ayahIndex = Math.floor(progress * (data.arabicAyahs.length - 1));
+            Math.max(
+              1,
+              nativeEvent.contentSize.height - nativeEvent.layoutMeasurement.height
+            );
+          const ayahIndex = Math.floor(
+            progress * (data.arabicAyahs.length - 1)
+          );
           setLastRead(surahId, ayahNumbers[ayahIndex] ?? ayahIndex + 1);
         }}
         scrollEventThrottle={400}
       >
+        {/* Bismillah */}
         {surahId !== 9 && surahId !== 1 && data && (
           <View style={styles.bismillah}>
             <Text style={[styles.bismillahText, { color: colors.primary }]}>
@@ -184,34 +236,62 @@ export default function SurahScreen() {
           </View>
         )}
 
+        {/* Surah info banner */}
         {data?.surah && (
-          <View style={[styles.surahInfoBanner, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
-            <View style={styles.surahInfoItem}>
-              <Text style={[styles.surahInfoLabel, { color: colors.mutedForeground }]}>Surah No.</Text>
-              <Text style={[styles.surahInfoValue, { color: colors.primary }]}>{surahId}</Text>
-            </View>
-            <View style={[styles.surahInfoDiv, { backgroundColor: colors.border }]} />
-            <View style={styles.surahInfoItem}>
-              <Text style={[styles.surahInfoLabel, { color: colors.mutedForeground }]}>Ayahs</Text>
-              <Text style={[styles.surahInfoValue, { color: colors.primary }]}>{data.surah.numberOfAyahs}</Text>
-            </View>
-            <View style={[styles.surahInfoDiv, { backgroundColor: colors.border }]} />
-            <View style={styles.surahInfoItem}>
-              <Text style={[styles.surahInfoLabel, { color: colors.mutedForeground }]}>Origin</Text>
-              <Text style={[styles.surahInfoValue, { color: colors.primary }]}>{data.surah.revelationType}</Text>
-            </View>
-            <View style={[styles.surahInfoDiv, { backgroundColor: colors.border }]} />
-            <View style={styles.surahInfoItem}>
-              <Text style={[styles.surahInfoLabel, { color: colors.mutedForeground }]}>Meaning</Text>
-              <Text style={[styles.surahInfoValue, { color: colors.primary }]} numberOfLines={1}>{data.surah.englishNameTranslation}</Text>
-            </View>
+          <View
+            style={[
+              styles.surahInfoBanner,
+              { backgroundColor: colors.secondary, borderColor: colors.border },
+            ]}
+          >
+            {[
+              { label: "No.", value: String(surahId) },
+              { label: "Ayahs", value: String(data.surah.numberOfAyahs) },
+              { label: "Origin", value: data.surah.revelationType },
+              { label: "Meaning", value: data.surah.englishNameTranslation },
+            ].map((item, i, arr) => (
+              <React.Fragment key={item.label}>
+                <View style={styles.surahInfoItem}>
+                  <Text style={[styles.surahInfoLabel, { color: colors.mutedForeground }]}>
+                    {item.label}
+                  </Text>
+                  <Text
+                    style={[styles.surahInfoValue, { color: colors.primary }]}
+                    numberOfLines={1}
+                  >
+                    {item.value}
+                  </Text>
+                </View>
+                {i < arr.length - 1 && (
+                  <View style={[styles.surahInfoDiv, { backgroundColor: colors.border }]} />
+                )}
+              </React.Fragment>
+            ))}
           </View>
         )}
 
+        {/* Word-by-word intro card when mode is active */}
+        {showWordByWord && data && (
+          <View
+            style={[
+              styles.wbwIntro,
+              { backgroundColor: colors.primary + "10", borderColor: colors.primary + "25" },
+            ]}
+          >
+            <Feather name="info" size={14} color={colors.primary} />
+            <Text style={[styles.wbwIntroText, { color: colors.primary }]}>
+              Each Arabic word is shown with its transliteration and English meaning. Words flow right-to-left as in the original text.
+            </Text>
+          </View>
+        )}
+
+        {/* Ayah cards */}
         {data?.arabicAyahs.map((arabicAyah, idx) => {
           const translationAyah = data.translationAyahs[idx];
           const audioAyah = data.audioAyahs[idx];
-          const audioUrl = audioAyah?.audio ?? `${AUDIO_CDN}/${reciter.edition}/${arabicAyah.number}.mp3`;
+          const audioUrl =
+            audioAyah?.audio ??
+            `${AUDIO_CDN}/${reciter.edition}/${arabicAyah.number}.mp3`;
 
           return (
             <AyahCard
@@ -227,6 +307,7 @@ export default function SurahScreen() {
               surahName={data.surah.englishName}
               showTranslation={showTranslation}
               showTransliteration={showTranslit}
+              showWordByWord={showWordByWord}
               isPlaying={playingIdx === idx}
               fontSize={fontSize}
               onPlayPress={() => {
@@ -238,36 +319,137 @@ export default function SurahScreen() {
         })}
       </ScrollView>
 
-      <Modal visible={langModalVisible} animationType="slide" transparent onRequestClose={() => setLangModalVisible(false)}>
+      {/* ── Language modal ── */}
+      <Modal
+        visible={langModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setLangModalVisible(false)}
+      >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalSheet, { backgroundColor: colors.background }]}>
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <View style={styles.modalHeaderRow}>
-              <Text style={[styles.modalTitle, { color: colors.foreground }]}>Translation Language</Text>
+              <Text style={[styles.modalTitle, { color: colors.foreground }]}>
+                Translation Language
+              </Text>
               <TouchableOpacity onPress={() => setLangModalVisible(false)}>
                 <Feather name="x" size={22} color={colors.mutedForeground} />
               </TouchableOpacity>
             </View>
             <FlatList
               data={TRANSLATION_OPTIONS}
-              keyExtractor={item => item.id}
+              keyExtractor={(item) => item.id}
               contentContainerStyle={{ padding: 16, gap: 8 }}
               renderItem={({ item }) => (
                 <TouchableOpacity
                   style={[
                     styles.langOption,
-                    { backgroundColor: translationLang === item.id ? colors.secondary : colors.card, borderColor: translationLang === item.id ? colors.primary : colors.border },
+                    {
+                      backgroundColor:
+                        translationLang === item.id
+                          ? colors.secondary
+                          : colors.card,
+                      borderColor:
+                        translationLang === item.id
+                          ? colors.primary
+                          : colors.border,
+                    },
                   ]}
-                  onPress={() => { setTranslationLang(item.id); setLangModalVisible(false); }}
+                  onPress={() => {
+                    setTranslationLang(item.id);
+                    setLangModalVisible(false);
+                  }}
                 >
                   <Text style={{ fontSize: 22 }}>{item.flag}</Text>
-                  <Text style={[styles.langLabel, { color: translationLang === item.id ? colors.primary : colors.foreground }]}>
+                  <Text
+                    style={[
+                      styles.langLabel,
+                      {
+                        color:
+                          translationLang === item.id
+                            ? colors.primary
+                            : colors.foreground,
+                      },
+                    ]}
+                  >
                     {item.label}
                   </Text>
-                  {translationLang === item.id && <Feather name="check" size={16} color={colors.primary} />}
+                  {translationLang === item.id && (
+                    <Feather name="check" size={16} color={colors.primary} />
+                  )}
                 </TouchableOpacity>
               )}
             />
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Font size modal ── */}
+      <Modal
+        visible={fontModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setFontModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalSheet, { backgroundColor: colors.background }]}>
+            <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
+            <View style={styles.modalHeaderRow}>
+              <Text style={[styles.modalTitle, { color: colors.foreground }]}>
+                Arabic Font Size
+              </Text>
+              <TouchableOpacity onPress={() => setFontModalVisible(false)}>
+                <Feather name="x" size={22} color={colors.mutedForeground} />
+              </TouchableOpacity>
+            </View>
+            <View style={{ padding: 20, gap: 20 }}>
+              <Text
+                style={[
+                  styles.fontPreview,
+                  { color: colors.foreground, fontSize },
+                ]}
+              >
+                بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ
+              </Text>
+              <View style={styles.fontGrid}>
+                {FONT_SIZES.map((size) => (
+                  <TouchableOpacity
+                    key={size}
+                    style={[
+                      styles.fontOption,
+                      {
+                        backgroundColor:
+                          fontSize === size ? colors.primary : colors.card,
+                        borderColor:
+                          fontSize === size ? colors.primary : colors.border,
+                      },
+                    ]}
+                    onPress={() => {
+                      setFontSize(size);
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.fontOptionText,
+                        {
+                          color: fontSize === size ? "#FFFFFF" : colors.foreground,
+                        },
+                      ]}
+                    >
+                      {size}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <TouchableOpacity
+                style={[styles.doneBtn, { backgroundColor: colors.primary }]}
+                onPress={() => setFontModalVisible(false)}
+              >
+                <Text style={styles.doneBtnText}>Done</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -275,37 +457,179 @@ export default function SurahScreen() {
   );
 }
 
+/** Small helper so the controls row is DRY */
+function ToggleBtn({
+  label,
+  icon,
+  active,
+  onPress,
+  colors,
+  accent = false,
+}: {
+  label: string;
+  icon?: string;
+  active: boolean;
+  onPress: () => void;
+  colors: ReturnType<typeof import("@/hooks/useColors").useColors>;
+  accent?: boolean;
+}) {
+  const activeBg = accent ? "#0D5C3A" : colors.primary;
+  return (
+    <TouchableOpacity
+      style={[
+        styles.controlBtn,
+        {
+          backgroundColor: active ? activeBg : colors.muted,
+          flexDirection: "row",
+          gap: 5,
+        },
+      ]}
+      onPress={onPress}
+    >
+      {icon && (
+        <Feather
+          name={icon as any}
+          size={12}
+          color={active ? "#FFFFFF" : colors.mutedForeground}
+        />
+      )}
+      <Text
+        style={[
+          styles.controlText,
+          { color: active ? "#FFFFFF" : colors.mutedForeground },
+        ]}
+      >
+        {label}
+      </Text>
+    </TouchableOpacity>
+  );
+}
+
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  header: { paddingHorizontal: 20, paddingBottom: 12, borderBottomWidth: 1 },
-  headerTop: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 14 },
+  header: { paddingHorizontal: 16, paddingBottom: 10, borderBottomWidth: 1 },
+  headerTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 12,
+  },
   backBtn: { padding: 4 },
   headerInfo: { flex: 1 },
   surahName: { fontSize: 17, fontFamily: "Inter_700Bold" },
   surahMeta: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
   arabicName: { fontSize: 22, fontWeight: "400" },
-  controlsRow: { flexDirection: "row", gap: 8, marginBottom: 8 },
-  controlBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, alignItems: "center", justifyContent: "center" },
+  controlsRow: { flexDirection: "row", gap: 8, paddingBottom: 10 },
+  controlBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   controlText: { fontSize: 12, fontFamily: "Inter_500Medium" },
-  fontRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  fontLabel: { fontSize: 12, fontFamily: "Inter_400Regular" },
-  fontBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
-  fontBtnText: { fontSize: 11, fontFamily: "Inter_500Medium" },
-  loadingState: { alignItems: "center", justifyContent: "center", padding: 40, gap: 12 },
-  loadingText: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center" },
+  wbwBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginBottom: 6,
+  },
+  wbwBannerText: { flex: 1, fontSize: 11, fontFamily: "Inter_400Regular", lineHeight: 16 },
+  loadingState: {
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 40,
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+    textAlign: "center",
+  },
   bismillah: { alignItems: "center", paddingVertical: 20, gap: 6 },
   bismillahText: { fontSize: 26, fontWeight: "400", lineHeight: 44 },
-  bismillahTrans: { fontSize: 12, fontFamily: "Inter_400Regular", fontStyle: "italic" },
-  surahInfoBanner: { flexDirection: "row", marginHorizontal: 20, marginBottom: 8, padding: 14, borderRadius: 14, borderWidth: 1 },
+  bismillahTrans: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    fontStyle: "italic",
+  },
+  surahInfoBanner: {
+    flexDirection: "row",
+    marginHorizontal: 20,
+    marginBottom: 8,
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
   surahInfoItem: { flex: 1, alignItems: "center", gap: 4 },
-  surahInfoLabel: { fontSize: 10, fontFamily: "Inter_500Medium", textTransform: "uppercase", letterSpacing: 0.5 },
-  surahInfoValue: { fontSize: 13, fontFamily: "Inter_700Bold" },
+  surahInfoLabel: {
+    fontSize: 10,
+    fontFamily: "Inter_500Medium",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  surahInfoValue: { fontSize: 12, fontFamily: "Inter_700Bold" },
   surahInfoDiv: { width: 1, marginVertical: 4 },
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
-  modalSheet: { borderTopLeftRadius: 28, borderTopRightRadius: 28, maxHeight: "70%", minHeight: "40%" },
-  modalHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: "center", marginTop: 12, marginBottom: 8 },
-  modalHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, paddingBottom: 12 },
+  wbwIntro: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    marginHorizontal: 20,
+    marginBottom: 8,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  wbwIntroText: { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 18 },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  modalSheet: {
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    maxHeight: "75%",
+    minHeight: "35%",
+  },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    alignSelf: "center",
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  modalHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+  },
   modalTitle: { fontSize: 18, fontFamily: "Inter_700Bold" },
-  langOption: { flexDirection: "row", alignItems: "center", gap: 14, padding: 14, borderRadius: 14, borderWidth: 1 },
+  langOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
   langLabel: { flex: 1, fontSize: 15, fontFamily: "Inter_500Medium" },
+  fontPreview: { textAlign: "center", lineHeight: 56 },
+  fontGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  fontOption: {
+    paddingHorizontal: 18,
+    paddingVertical: 11,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  fontOptionText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  doneBtn: { paddingVertical: 14, borderRadius: 14, alignItems: "center" },
+  doneBtnText: { color: "#FFFFFF", fontSize: 15, fontFamily: "Inter_600SemiBold" },
 });
