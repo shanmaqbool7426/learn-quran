@@ -17,6 +17,11 @@ import WordByWordView from "@/components/WordByWordView";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { fetchTafseer } from "@/services/aiService";
+import {
+  AI_TAFSEER_LANGUAGES,
+  fetchScholarTafseer,
+  SCHOLAR_TAFSEERS,
+} from "@/services/quranApi";
 
 interface Props {
   ayah: {
@@ -38,9 +43,10 @@ interface Props {
   isLoading?: boolean;
   onPlayPress?: () => void;
   fontSize?: number;
-  /** 0–1 fraction of playback progress for this ayah — drives word highlight */
   playbackProgress?: number;
 }
+
+type TafseerSource = "ai" | "scholar";
 
 export default function AyahCard({
   ayah,
@@ -63,9 +69,20 @@ export default function AyahCard({
   const isBookmarked = bookmarks.includes(ayahId);
   const [highlighted, setHighlighted] = useState(false);
   const [tafseerVisible, setTafseerVisible] = useState(false);
-  const [tafseerText, setTafseerText] = useState("");
-  const [tafseerLoading, setTafseerLoading] = useState(false);
   const [wbwExpanded, setWbwExpanded] = useState(false);
+
+  // ── AI Tafseer state ──
+  const [aiTafseer, setAiTafseer] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [tafseerLang, setTafseerLang] = useState("English");
+
+  // ── Scholar Tafseer state ──
+  const [scholarTafseer, setScholarTafseer] = useState("");
+  const [scholarLoading, setScholarLoading] = useState(false);
+  const [selectedScholarId, setSelectedScholarId] = useState(169);
+
+  // ── Source tab state ──
+  const [tafseerSource, setTafseerSource] = useState<TafseerSource>("ai");
 
   const handleBookmark = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -82,29 +99,68 @@ export default function AyahCard({
     } catch {}
   };
 
+  const loadAiTafseer = async (lang: string) => {
+    setAiLoading(true);
+    try {
+      const result = await fetchTafseer(
+        surahId, surahName, ayah.number, ayah.arabic, ayah.translation, lang
+      );
+      setAiTafseer(result.tafseer);
+    } catch {
+      setAiTafseer("Could not load tafseer. Please check your connection and try again.");
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const loadScholarTafseer = async (scholarId: number) => {
+    setScholarTafseer("");
+    setScholarLoading(true);
+    try {
+      const text = await fetchScholarTafseer(scholarId, surahId, ayah.number);
+      setScholarTafseer(text || "Tafseer text not available for this ayah from this source.");
+    } catch {
+      setScholarTafseer("Could not load tafseer. Please check your connection.");
+    } finally {
+      setScholarLoading(false);
+    }
+  };
+
   const handleTafseer = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setTafseerVisible(true);
-    if (!tafseerText) {
-      setTafseerLoading(true);
-      try {
-        const result = await fetchTafseer(
-          surahId,
-          surahName,
-          ayah.number,
-          ayah.arabic,
-          ayah.translation
-        );
-        setTafseerText(result.tafseer);
-      } catch {
-        setTafseerText(
-          "Could not load tafseer. Please check your connection and try again."
-        );
-      } finally {
-        setTafseerLoading(false);
-      }
+    if (tafseerSource === "ai" && !aiTafseer) {
+      await loadAiTafseer(tafseerLang);
+    } else if (tafseerSource === "scholar" && !scholarTafseer) {
+      await loadScholarTafseer(selectedScholarId);
     }
   };
+
+  const handleSourceChange = async (source: TafseerSource) => {
+    setTafseerSource(source);
+    if (source === "ai" && !aiTafseer) {
+      await loadAiTafseer(tafseerLang);
+    } else if (source === "scholar" && !scholarTafseer) {
+      await loadScholarTafseer(selectedScholarId);
+    }
+  };
+
+  const handleLangChange = async (lang: string) => {
+    setTafseerLang(lang);
+    setAiTafseer("");
+    await loadAiTafseer(lang);
+  };
+
+  const handleScholarChange = async (scholarId: number) => {
+    setSelectedScholarId(scholarId);
+    setScholarTafseer("");
+    await loadScholarTafseer(scholarId);
+  };
+
+  const selectedScholar = SCHOLAR_TAFSEERS.find(s => s.id === selectedScholarId) ?? SCHOLAR_TAFSEERS[0]!;
+  const selectedLang = AI_TAFSEER_LANGUAGES.find(l => l.code === tafseerLang) ?? AI_TAFSEER_LANGUAGES[0]!;
+  const isLoadingContent = tafseerSource === "ai" ? aiLoading : scholarLoading;
+  const tafseerContent = tafseerSource === "ai" ? aiTafseer : scholarTafseer;
 
   return (
     <>
@@ -112,11 +168,7 @@ export default function AyahCard({
         style={[
           styles.container,
           {
-            backgroundColor: isPlaying
-              ? colors.secondary
-              : highlighted
-              ? colors.muted
-              : colors.card,
+            backgroundColor: isPlaying ? colors.secondary : highlighted ? colors.muted : colors.card,
             borderColor: isPlaying ? colors.primary : colors.border,
             borderWidth: isPlaying ? 2 : 1,
           },
@@ -124,18 +176,8 @@ export default function AyahCard({
       >
         {/* ── Header row ── */}
         <View style={styles.header}>
-          <View
-            style={[
-              styles.ayahNum,
-              { backgroundColor: isPlaying ? colors.primary : colors.secondary },
-            ]}
-          >
-            <Text
-              style={[
-                styles.ayahNumText,
-                { color: isPlaying ? "#FFFFFF" : colors.primary },
-              ]}
-            >
+          <View style={[styles.ayahNum, { backgroundColor: isPlaying ? colors.primary : colors.secondary }]}>
+            <Text style={[styles.ayahNumText, { color: isPlaying ? "#FFFFFF" : colors.primary }]}>
               {ayah.number}
             </Text>
           </View>
@@ -147,97 +189,50 @@ export default function AyahCard({
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   onPlayPress();
                 }}
-                style={[
-                  styles.actionBtn,
-                  { backgroundColor: isPlaying ? colors.primary : colors.muted },
-                ]}
+                style={[styles.actionBtn, { backgroundColor: isPlaying ? colors.primary : colors.muted }]}
               >
                 {isLoading ? (
-                  <ActivityIndicator
-                    size={13}
-                    color={isPlaying ? "#FFFFFF" : colors.primary}
-                  />
+                  <ActivityIndicator size={13} color={isPlaying ? "#FFFFFF" : colors.primary} />
                 ) : (
-                  <Feather
-                    name={isPlaying ? "pause" : "play"}
-                    size={13}
-                    color={isPlaying ? "#FFFFFF" : colors.primary}
-                  />
+                  <Feather name={isPlaying ? "pause" : "play"} size={13} color={isPlaying ? "#FFFFFF" : colors.primary} />
                 )}
               </TouchableOpacity>
             )}
 
-            {/* Word-by-word toggle */}
             <TouchableOpacity
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setWbwExpanded((p) => !p);
-              }}
-              style={[
-                styles.iconBtn,
-                wbwExpanded && {
-                  backgroundColor: colors.primary + "20",
-                  borderRadius: 10,
-                },
-              ]}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setWbwExpanded(p => !p); }}
+              style={[styles.iconBtn, wbwExpanded && { backgroundColor: colors.primary + "20", borderRadius: 10 }]}
             >
-              <Feather
-                name="grid"
-                size={14}
-                color={wbwExpanded ? colors.primary : colors.mutedForeground}
-              />
+              <Feather name="grid" size={14} color={wbwExpanded ? colors.primary : colors.mutedForeground} />
             </TouchableOpacity>
 
-            {/* AI Tafseer */}
             <TouchableOpacity
               onPress={handleTafseer}
-              style={[
-                styles.iconBtn,
-                { backgroundColor: "#8B5CF620", borderRadius: 12 },
-              ]}
+              style={[styles.iconBtn, { backgroundColor: "#8B5CF620", borderRadius: 12 }]}
             >
               <Feather name="book" size={14} color="#8B5CF6" />
             </TouchableOpacity>
 
-            {/* Share */}
             <TouchableOpacity onPress={handleShare} style={styles.iconBtn}>
               <Feather name="share-2" size={14} color={colors.mutedForeground} />
             </TouchableOpacity>
 
-            {/* Highlight */}
             <TouchableOpacity
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setHighlighted((p) => !p);
-              }}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setHighlighted(p => !p); }}
               style={styles.iconBtn}
             >
-              <Feather
-                name="edit-2"
-                size={14}
-                color={highlighted ? colors.accent : colors.mutedForeground}
-              />
+              <Feather name="edit-2" size={14} color={highlighted ? colors.accent : colors.mutedForeground} />
             </TouchableOpacity>
 
-            {/* Bookmark */}
             <TouchableOpacity onPress={handleBookmark} style={styles.iconBtn}>
-              <Feather
-                name="bookmark"
-                size={14}
-                color={isBookmarked ? colors.accent : colors.mutedForeground}
-              />
+              <Feather name="bookmark" size={14} color={isBookmarked ? colors.accent : colors.mutedForeground} />
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* ── Hifz mode (replaces Arabic text + translation) ── */}
+        {/* ── Hifz or Arabic text ── */}
         {hifzMode ? (
-          <View
-            style={[
-              styles.hifzContainer,
-              { backgroundColor: colors.background, borderColor: "#F59E0B30" },
-            ]}
-          >
+          <View style={[styles.hifzContainer, { backgroundColor: colors.background, borderColor: "#F59E0B30" }]}>
             <HifzView
               arabic={ayah.arabic}
               translation={ayah.translation}
@@ -250,54 +245,23 @@ export default function AyahCard({
             />
           </View>
         ) : (
-          <>
-            {/* ── Arabic text ── */}
-            <Text
-              style={[
-                styles.arabic,
-                { color: colors.foreground, fontSize },
-              ]}
-            >
-              {ayah.arabic}
-            </Text>
-          </>
+          <Text style={[styles.arabic, { color: colors.foreground, fontSize }]}>
+            {ayah.arabic}
+          </Text>
         )}
 
         {/* ── Word-by-word overlay ── */}
         {(showWordByWord || wbwExpanded) && (
-          <View
-            style={[
-              styles.wbwContainer,
-              {
-                backgroundColor: colors.background,
-                borderColor: colors.primary + "30",
-              },
-            ]}
-          >
+          <View style={[styles.wbwContainer, { backgroundColor: colors.background, borderColor: colors.primary + "30" }]}>
             <View style={styles.wbwHeader}>
-              <View
-                style={[
-                  styles.wbwBadge,
-                  { backgroundColor: colors.primary + "15" },
-                ]}
-              >
+              <View style={[styles.wbwBadge, { backgroundColor: colors.primary + "15" }]}>
                 <Feather name="grid" size={11} color={colors.primary} />
-                <Text style={[styles.wbwBadgeText, { color: colors.primary }]}>
-                  Word-by-Word
-                </Text>
+                <Text style={[styles.wbwBadgeText, { color: colors.primary }]}>Word-by-Word</Text>
               </View>
-              <TouchableOpacity
-                onPress={() => setWbwExpanded(false)}
-                style={styles.wbwClose}
-              >
-                <Feather
-                  name="chevron-up"
-                  size={16}
-                  color={colors.mutedForeground}
-                />
+              <TouchableOpacity onPress={() => setWbwExpanded(false)} style={styles.wbwClose}>
+                <Feather name="chevron-up" size={16} color={colors.mutedForeground} />
               </TouchableOpacity>
             </View>
-
             <WordByWordView
               surahId={surahId}
               ayahNumber={ayah.number}
@@ -325,164 +289,205 @@ export default function AyahCard({
         {/* ── Quick-action row ── */}
         <View style={styles.quickRow}>
           <TouchableOpacity
-            style={[
-              styles.quickBtn,
-              {
-                backgroundColor: wbwExpanded
-                  ? colors.primary + "15"
-                  : colors.muted,
-                borderColor: wbwExpanded ? colors.primary + "40" : colors.border,
-              },
-            ]}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              setWbwExpanded((p) => !p);
-            }}
+            style={[styles.quickBtn, { backgroundColor: wbwExpanded ? colors.primary + "15" : colors.muted, borderColor: wbwExpanded ? colors.primary + "40" : colors.border }]}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setWbwExpanded(p => !p); }}
           >
-            <Feather
-              name="grid"
-              size={12}
-              color={wbwExpanded ? colors.primary : colors.mutedForeground}
-            />
-            <Text
-              style={[
-                styles.quickBtnText,
-                { color: wbwExpanded ? colors.primary : colors.mutedForeground },
-              ]}
-            >
+            <Feather name="grid" size={12} color={wbwExpanded ? colors.primary : colors.mutedForeground} />
+            <Text style={[styles.quickBtnText, { color: wbwExpanded ? colors.primary : colors.mutedForeground }]}>
               {wbwExpanded ? "Hide words" : "Word-by-word"}
             </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[
-              styles.quickBtn,
-              { backgroundColor: "#8B5CF610", borderColor: "#8B5CF630" },
-            ]}
+            style={[styles.quickBtn, { backgroundColor: "#8B5CF610", borderColor: "#8B5CF630" }]}
             onPress={handleTafseer}
           >
             <Feather name="cpu" size={12} color="#8B5CF6" />
-            <Text style={[styles.quickBtnText, { color: "#8B5CF6" }]}>
-              AI Tafseer
-            </Text>
+            <Text style={[styles.quickBtnText, { color: "#8B5CF6" }]}>Tafseer</Text>
           </TouchableOpacity>
         </View>
       </View>
 
       {/* ── Tafseer modal ── */}
-      <Modal
-        visible={tafseerVisible}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setTafseerVisible(false)}
-      >
+      <Modal visible={tafseerVisible} animationType="slide" transparent onRequestClose={() => setTafseerVisible(false)}>
         <View style={styles.modalOverlay}>
-          <View
-            style={[styles.modalSheet, { backgroundColor: colors.background }]}
-          >
+          <View style={[styles.modalSheet, { backgroundColor: colors.background }]}>
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
 
+            {/* Header */}
             <View style={styles.modalHeader}>
               <View style={styles.modalTitleRow}>
-                <View
-                  style={[
-                    styles.modalAIBadge,
-                    { backgroundColor: "#8B5CF620" },
-                  ]}
-                >
-                  <Feather name="cpu" size={14} color="#8B5CF6" />
-                  <Text style={styles.modalAIText}>AI Tafseer</Text>
-                </View>
+                <Text style={[styles.modalTitleText, { color: colors.foreground }]}>Tafseer</Text>
                 <TouchableOpacity onPress={() => setTafseerVisible(false)}>
                   <Feather name="x" size={22} color={colors.mutedForeground} />
                 </TouchableOpacity>
               </View>
               <Text style={[styles.modalRef, { color: colors.mutedForeground }]}>
-                {surahName} • Ayah {ayah.number}
+                {surahName} · Ayah {ayah.number}
               </Text>
             </View>
 
-            <View
-              style={[
-                styles.modalAyahBox,
-                {
-                  backgroundColor: colors.card,
-                  borderColor: colors.border,
-                },
-              ]}
-            >
-              <Text
-                style={[styles.modalArabic, { color: colors.foreground }]}
-              >
-                {ayah.arabic}
-              </Text>
-              <Text
-                style={[styles.modalTranslation, { color: colors.mutedForeground }]}
-              >
-                {ayah.translation}
-              </Text>
+            {/* Ayah preview box */}
+            <View style={[styles.modalAyahBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Text style={[styles.modalArabic, { color: colors.foreground }]}>{ayah.arabic}</Text>
+              <Text style={[styles.modalTranslation, { color: colors.mutedForeground }]}>{ayah.translation}</Text>
             </View>
 
+            {/* Source tabs */}
+            <View style={[styles.sourceTabs, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+              <TouchableOpacity
+                style={[
+                  styles.sourceTab,
+                  tafseerSource === "ai" && { backgroundColor: colors.background, shadowColor: "#000", shadowOpacity: 0.08, shadowRadius: 4, elevation: 2 },
+                ]}
+                onPress={() => handleSourceChange("ai")}
+              >
+                <Feather name="cpu" size={14} color={tafseerSource === "ai" ? "#8B5CF6" : colors.mutedForeground} />
+                <Text style={[styles.sourceTabText, { color: tafseerSource === "ai" ? "#8B5CF6" : colors.mutedForeground }]}>
+                  AI Tafseer
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.sourceTab,
+                  tafseerSource === "scholar" && { backgroundColor: colors.background, shadowColor: "#000", shadowOpacity: 0.08, shadowRadius: 4, elevation: 2 },
+                ]}
+                onPress={() => handleSourceChange("scholar")}
+              >
+                <Feather name="book-open" size={14} color={tafseerSource === "scholar" ? colors.primary : colors.mutedForeground} />
+                <Text style={[styles.sourceTabText, { color: tafseerSource === "scholar" ? colors.primary : colors.mutedForeground }]}>
+                  Scholars
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* AI language selector OR Scholar selector */}
+            {tafseerSource === "ai" ? (
+              <View style={styles.selectorSection}>
+                <Text style={[styles.selectorLabel, { color: colors.mutedForeground }]}>Language</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.langScrollRow}>
+                  {AI_TAFSEER_LANGUAGES.map(lang => (
+                    <TouchableOpacity
+                      key={lang.code}
+                      style={[
+                        styles.langChip,
+                        {
+                          backgroundColor: tafseerLang === lang.code ? "#8B5CF620" : colors.muted,
+                          borderColor: tafseerLang === lang.code ? "#8B5CF6" : colors.border,
+                        },
+                      ]}
+                      onPress={() => handleLangChange(lang.code)}
+                    >
+                      <Text style={styles.langFlag}>{lang.flag}</Text>
+                      <Text style={[styles.langChipText, { color: tafseerLang === lang.code ? "#8B5CF6" : colors.foreground }]}>
+                        {lang.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            ) : (
+              <View style={styles.selectorSection}>
+                <Text style={[styles.selectorLabel, { color: colors.mutedForeground }]}>Scholar</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.langScrollRow}>
+                  {SCHOLAR_TAFSEERS.map(scholar => (
+                    <TouchableOpacity
+                      key={scholar.id}
+                      style={[
+                        styles.scholarChip,
+                        {
+                          backgroundColor: selectedScholarId === scholar.id ? colors.primary + "15" : colors.muted,
+                          borderColor: selectedScholarId === scholar.id ? colors.primary : colors.border,
+                        },
+                      ]}
+                      onPress={() => handleScholarChange(scholar.id)}
+                    >
+                      <Text style={styles.langFlag}>{scholar.flag}</Text>
+                      <View>
+                        <Text style={[styles.scholarName, { color: selectedScholarId === scholar.id ? colors.primary : colors.foreground }]}>
+                          {scholar.scholar}
+                        </Text>
+                        <Text style={[styles.scholarLang, { color: colors.mutedForeground }]}>
+                          {scholar.language}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+
+            {/* Tafseer content */}
             <ScrollView
               style={{ flex: 1 }}
               contentContainerStyle={styles.modalContent}
               showsVerticalScrollIndicator={false}
             >
-              {tafseerLoading ? (
+              {isLoadingContent ? (
                 <View style={styles.tafseerLoading}>
-                  <ActivityIndicator color="#8B5CF6" size="large" />
-                  <Text
-                    style={[
-                      styles.tafseerLoadingText,
-                      { color: colors.mutedForeground },
-                    ]}
-                  >
-                    Generating Tafseer...
+                  <ActivityIndicator color={tafseerSource === "ai" ? "#8B5CF6" : colors.primary} size="large" />
+                  <Text style={[styles.tafseerLoadingText, { color: colors.mutedForeground }]}>
+                    {tafseerSource === "ai"
+                      ? `Generating tafseer in ${tafseerLang}...`
+                      : `Loading ${selectedScholar.scholar} tafseer...`}
                   </Text>
                 </View>
+              ) : tafseerContent ? (
+                <>
+                  <View style={[styles.tafseerSourceBadge, {
+                    backgroundColor: tafseerSource === "ai" ? "#8B5CF615" : colors.secondary,
+                    borderColor: tafseerSource === "ai" ? "#8B5CF630" : colors.primary + "30",
+                  }]}>
+                    {tafseerSource === "ai" ? (
+                      <>
+                        <Feather name="cpu" size={12} color="#8B5CF6" />
+                        <Text style={[styles.tafseerSourceText, { color: "#8B5CF6" }]}>
+                          AI · {selectedLang.flag} {tafseerLang}
+                        </Text>
+                      </>
+                    ) : (
+                      <>
+                        <Text style={styles.tafseerSourceFlag}>{selectedScholar.flag}</Text>
+                        <Text style={[styles.tafseerSourceText, { color: colors.primary }]}>
+                          {selectedScholar.fullName} · {selectedScholar.language}
+                        </Text>
+                        {selectedScholar.era && (
+                          <View style={[styles.eraBadge, { backgroundColor: colors.muted }]}>
+                            <Text style={[styles.eraText, { color: colors.mutedForeground }]}>{selectedScholar.era}</Text>
+                          </View>
+                        )}
+                      </>
+                    )}
+                  </View>
+
+                  <View style={[styles.tafseerContent, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                    <Text style={[styles.tafseerText, { color: colors.foreground }]}>{tafseerContent}</Text>
+                  </View>
+
+                  {tafseerSource === "ai" && (
+                    <TouchableOpacity
+                      style={[styles.refreshTafseer, { borderColor: colors.border }]}
+                      onPress={() => { setAiTafseer(""); loadAiTafseer(tafseerLang); }}
+                    >
+                      <Feather name="refresh-cw" size={14} color={colors.mutedForeground} />
+                      <Text style={[styles.refreshTafseerText, { color: colors.mutedForeground }]}>Regenerate</Text>
+                    </TouchableOpacity>
+                  )}
+                </>
               ) : (
-                <View
-                  style={[
-                    styles.tafseerContent,
-                    {
-                      backgroundColor: colors.card,
-                      borderColor: colors.border,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[styles.tafseerText, { color: colors.foreground }]}
-                  >
-                    {tafseerText}
+                <View style={styles.tafseerLoading}>
+                  <Feather name="book" size={28} color={colors.border} />
+                  <Text style={[styles.tafseerLoadingText, { color: colors.mutedForeground }]}>
+                    Select a language or scholar above
                   </Text>
                 </View>
               )}
 
-              <TouchableOpacity
-                style={[styles.refreshTafseer, { borderColor: colors.border }]}
-                onPress={() => {
-                  setTafseerText("");
-                  setTafseerLoading(true);
-                  handleTafseer();
-                }}
-              >
-                <Feather name="refresh-cw" size={14} color={colors.mutedForeground} />
-                <Text
-                  style={[
-                    styles.refreshTafseerText,
-                    { color: colors.mutedForeground },
-                  ]}
-                >
-                  Regenerate
+              {tafseerSource === "ai" && (
+                <Text style={[styles.disclaimer, { color: colors.mutedForeground }]}>
+                  AI-generated tafseer. For authoritative scholarship, consult certified Islamic scholars.
                 </Text>
-              </TouchableOpacity>
-
-              <Text
-                style={[styles.disclaimer, { color: colors.mutedForeground }]}
-              >
-                AI-generated tafseer. For authoritative scholarship, consult
-                certified Islamic scholars.
-              </Text>
+              )}
             </ScrollView>
           </View>
         </View>
@@ -492,95 +497,64 @@ export default function AyahCard({
 }
 
 const styles = StyleSheet.create({
-  container: {
-    padding: 18,
-    marginHorizontal: 20,
-    marginBottom: 12,
-    borderRadius: 16,
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  ayahNum: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  container: { padding: 18, marginHorizontal: 20, marginBottom: 12, borderRadius: 16 },
+  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
+  ayahNum: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
   ayahNumText: { fontSize: 12, fontFamily: "Inter_700Bold" },
   actions: { flexDirection: "row", gap: 6, alignItems: "center" },
-  actionBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+  actionBtn: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  iconBtn: { padding: 5 },
+  arabic: { textAlign: "right", lineHeight: 44, fontWeight: "400", writingDirection: "rtl", marginBottom: 4 },
+  hifzContainer: { borderWidth: 1, borderRadius: 14, padding: 14, marginTop: 4, marginBottom: 4, gap: 10 },
+  wbwContainer: { borderWidth: 1, borderRadius: 14, padding: 14, marginTop: 8, marginBottom: 4, gap: 10 },
+  wbwHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  wbwBadge: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
+  wbwBadgeText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  wbwClose: { padding: 4 },
+  transliteration: { fontSize: 13, fontFamily: "Inter_400Regular", fontStyle: "italic", marginBottom: 8, lineHeight: 20 },
+  translation: { fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 22 },
+  quickRow: { flexDirection: "row", gap: 8, marginTop: 12, flexWrap: "wrap" },
+  quickBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, borderWidth: 1 },
+  quickBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+
+  // Modal
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
+  modalSheet: { borderTopLeftRadius: 28, borderTopRightRadius: 28, maxHeight: "92%", minHeight: "65%" },
+  modalHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: "center", marginTop: 12, marginBottom: 8 },
+  modalHeader: { paddingHorizontal: 20, paddingBottom: 10, gap: 4 },
+  modalTitleRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  modalTitleText: { fontSize: 18, fontFamily: "Inter_700Bold" },
+  modalRef: { fontSize: 13, fontFamily: "Inter_400Regular" },
+  modalAyahBox: { marginHorizontal: 20, marginBottom: 12, padding: 14, borderRadius: 14, borderWidth: 1, gap: 6 },
+  modalArabic: { fontSize: 18, textAlign: "right", lineHeight: 34, fontWeight: "400", writingDirection: "rtl" },
+  modalTranslation: { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 18, fontStyle: "italic" },
+
+  // Source tabs
+  sourceTabs: {
+    flexDirection: "row",
+    marginHorizontal: 20,
+    marginBottom: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 3,
+    gap: 3,
+  },
+  sourceTab: {
+    flex: 1,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    gap: 6,
+    paddingVertical: 8,
+    borderRadius: 10,
   },
-  iconBtn: { padding: 5 },
-  arabic: {
-    textAlign: "right",
-    lineHeight: 44,
-    fontWeight: "400",
-    writingDirection: "rtl",
-    marginBottom: 4,
-  },
-  hifzContainer: {
-    borderWidth: 1,
-    borderRadius: 14,
-    padding: 14,
-    marginTop: 4,
-    marginBottom: 4,
-    gap: 10,
-  },
-  wbwContainer: {
-    borderWidth: 1,
-    borderRadius: 14,
-    padding: 14,
-    marginTop: 8,
-    marginBottom: 4,
-    gap: 10,
-  },
-  wbwHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  wbwBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 20,
-  },
-  wbwBadgeText: {
-    fontSize: 11,
-    fontFamily: "Inter_600SemiBold",
-  },
-  wbwClose: { padding: 4 },
-  transliteration: {
-    fontSize: 13,
-    fontFamily: "Inter_400Regular",
-    fontStyle: "italic",
-    marginBottom: 8,
-    lineHeight: 20,
-  },
-  translation: {
-    fontSize: 14,
-    fontFamily: "Inter_400Regular",
-    lineHeight: 22,
-  },
-  quickRow: {
-    flexDirection: "row",
-    gap: 8,
-    marginTop: 12,
-    flexWrap: "wrap",
-  },
-  quickBtn: {
+  sourceTabText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+
+  // Selectors
+  selectorSection: { gap: 6, marginBottom: 8 },
+  selectorLabel: { fontSize: 11, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.5, paddingHorizontal: 20 },
+  langScrollRow: { paddingHorizontal: 20, gap: 8 },
+  langChip: {
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
@@ -589,83 +563,42 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1,
   },
-  quickBtnText: {
-    fontSize: 12,
-    fontFamily: "Inter_600SemiBold",
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "flex-end",
-  },
-  modalSheet: {
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    maxHeight: "85%",
-    minHeight: "60%",
-  },
-  modalHandle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    alignSelf: "center",
-    marginTop: 12,
-    marginBottom: 8,
-  },
-  modalHeader: { paddingHorizontal: 20, paddingBottom: 12, gap: 8 },
-  modalTitleRow: {
+  langFlag: { fontSize: 16 },
+  langChipText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  scholarChip: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 14,
+    borderWidth: 1,
+    minWidth: 120,
   },
-  modalAIBadge: {
+  scholarName: { fontSize: 12, fontFamily: "Inter_700Bold" },
+  scholarLang: { fontSize: 10, fontFamily: "Inter_400Regular", marginTop: 1 },
+
+  // Content
+  modalContent: { paddingHorizontal: 20, paddingBottom: 40, gap: 12 },
+  tafseerLoading: { alignItems: "center", paddingVertical: 40, gap: 14 },
+  tafseerLoadingText: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center" },
+  tafseerSourceBadge: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
-  },
-  modalAIText: {
-    fontSize: 13,
-    fontFamily: "Inter_700Bold",
-    color: "#8B5CF6",
-  },
-  modalRef: { fontSize: 13, fontFamily: "Inter_400Regular" },
-  modalAyahBox: {
-    marginHorizontal: 20,
-    marginBottom: 12,
-    padding: 16,
-    borderRadius: 14,
     borderWidth: 1,
-    gap: 8,
+    alignSelf: "flex-start",
+    flexWrap: "wrap",
   },
-  modalArabic: {
-    fontSize: 20,
-    textAlign: "right",
-    lineHeight: 38,
-    fontWeight: "400",
-    writingDirection: "rtl",
-  },
-  modalTranslation: {
-    fontSize: 13,
-    fontFamily: "Inter_400Regular",
-    lineHeight: 20,
-    fontStyle: "italic",
-  },
-  modalContent: { paddingHorizontal: 20, paddingBottom: 40, gap: 14 },
-  tafseerLoading: {
-    alignItems: "center",
-    paddingVertical: 40,
-    gap: 16,
-  },
-  tafseerLoadingText: { fontSize: 14, fontFamily: "Inter_400Regular" },
-  tafseerContent: { padding: 18, borderRadius: 16, borderWidth: 1 },
-  tafseerText: {
-    fontSize: 14,
-    fontFamily: "Inter_400Regular",
-    lineHeight: 24,
-  },
+  tafseerSourceText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  tafseerSourceFlag: { fontSize: 14 },
+  eraBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
+  eraText: { fontSize: 10, fontFamily: "Inter_400Regular" },
+  tafseerContent: { padding: 16, borderRadius: 16, borderWidth: 1 },
+  tafseerText: { fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 24 },
   refreshTafseer: {
     flexDirection: "row",
     alignItems: "center",
@@ -676,10 +609,5 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   refreshTafseerText: { fontSize: 13, fontFamily: "Inter_500Medium" },
-  disclaimer: {
-    fontSize: 11,
-    fontFamily: "Inter_400Regular",
-    textAlign: "center",
-    lineHeight: 18,
-  },
+  disclaimer: { fontSize: 11, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 18 },
 });

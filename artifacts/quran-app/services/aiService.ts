@@ -13,12 +13,13 @@ export async function fetchTafseer(
   surahName: string,
   ayahNumber: number,
   arabicText: string,
-  translation: string
+  translation: string,
+  language: string = "English"
 ): Promise<TafseerResult> {
   const res = await fetch(`${API_BASE}/ai/tafseer`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ surahId, surahName, ayahNumber, arabicText, translation }),
+    body: JSON.stringify({ surahId, surahName, ayahNumber, arabicText, translation, language }),
   });
   if (!res.ok) throw new Error(`AI API error: ${res.status}`);
   return res.json() as Promise<TafseerResult>;

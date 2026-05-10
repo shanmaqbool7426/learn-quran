@@ -1,6 +1,5 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { LinearGradient } from "expo-linear-gradient";
 import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
@@ -10,6 +9,7 @@ import {
   View,
 } from "react-native";
 
+import HifzQuiz from "@/components/HifzQuiz";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 
@@ -139,6 +139,7 @@ export default function HifzView({
   const [celebrated, setCelebrated] = useState(false);
   const celebrateAnim = useRef(new Animated.Value(0)).current;
   const sessionRecorded = useRef(false);
+  const [quizVisible, setQuizVisible] = useState(false);
 
   useEffect(() => {
     setHiddenWords(getInitiallyHidden(words.length, difficulty));
@@ -251,9 +252,16 @@ export default function HifzView({
               Recorded in your Hifz progress
             </Text>
           </View>
-          <View style={[styles.xpBadge, { backgroundColor: "#10B98125" }]}>
-            <Text style={[styles.xpBadgeText, { color: "#10B981" }]}>+1 Ayah</Text>
-          </View>
+          <TouchableOpacity
+            style={[styles.quizBtn, { backgroundColor: "#F59E0B" }]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              setQuizVisible(true);
+            }}
+          >
+            <Text style={styles.quizBtnEmoji}>🧠</Text>
+            <Text style={styles.quizBtnText}>Test Recall</Text>
+          </TouchableOpacity>
         </Animated.View>
       )}
 
@@ -287,6 +295,15 @@ export default function HifzView({
           </Text>
         </View>
       )}
+
+      <HifzQuiz
+        visible={quizVisible}
+        onClose={() => setQuizVisible(false)}
+        words={words}
+        translation={translation}
+        surahName={surahName}
+        ayahNumber={ayahNumber}
+      />
     </View>
   );
 }
@@ -330,12 +347,16 @@ const styles = StyleSheet.create({
   celebrationEmoji: { fontSize: 22 },
   celebrationTitle: { fontSize: 13, fontFamily: "Inter_700Bold" },
   celebrationSub: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 2 },
-  xpBadge: {
+  quizBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: 7,
     borderRadius: 12,
   },
-  xpBadgeText: { fontSize: 12, fontFamily: "Inter_700Bold" },
+  quizBtnEmoji: { fontSize: 13 },
+  quizBtnText: { color: "#FFFFFF", fontSize: 11, fontFamily: "Inter_700Bold" },
   wordsContainer: {
     flexDirection: "row-reverse",
     flexWrap: "wrap",

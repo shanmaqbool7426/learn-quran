@@ -57,6 +57,136 @@ export interface WordByWord {
   audioUrl: string;
 }
 
+// ── Scholar Tafseers ─────────────────────────────────────────────────────────────
+export interface ScholarTafseer {
+  id: number;
+  scholar: string;
+  fullName: string;
+  language: string;
+  langCode: string;
+  flag: string;
+  description: string;
+  era?: string;
+}
+
+export const SCHOLAR_TAFSEERS: ScholarTafseer[] = [
+  {
+    id: 169,
+    scholar: "Ibn Kathir",
+    fullName: "Tafsir Ibn Kathir",
+    language: "English",
+    langCode: "en",
+    flag: "🇬🇧",
+    description: "Most popular classical tafseer",
+    era: "14th century",
+  },
+  {
+    id: 93,
+    scholar: "Ibn Kathir",
+    fullName: "Tafsir Ibn Kathir",
+    language: "Urdu",
+    langCode: "ur",
+    flag: "🇵🇰",
+    description: "Urdu translation of Ibn Kathir",
+    era: "14th century",
+  },
+  {
+    id: 33,
+    scholar: "Ibn Kathir",
+    fullName: "Tafsir Ibn Kathir",
+    language: "Indonesian",
+    langCode: "id",
+    flag: "🇮🇩",
+    description: "Indonesian translation of Ibn Kathir",
+    era: "14th century",
+  },
+  {
+    id: 381,
+    scholar: "Al-Muyassar",
+    fullName: "Tafsir Al-Muyassar",
+    language: "Arabic",
+    langCode: "ar",
+    flag: "🇸🇦",
+    description: "Simplified Saudi Ministry tafseer",
+    era: "Modern",
+  },
+  {
+    id: 164,
+    scholar: "Ibn Saadi",
+    fullName: "Tayseer Al-Karim Al-Rahman",
+    language: "Arabic",
+    langCode: "ar",
+    flag: "🇸🇦",
+    description: "Accessible classical scholarship",
+    era: "20th century",
+  },
+  {
+    id: 168,
+    scholar: "Al-Baghawi",
+    fullName: "Maaalim Al-Tanzeel",
+    language: "Arabic",
+    langCode: "ar",
+    flag: "🇸🇦",
+    description: "Classical Sunni exegesis",
+    era: "11th century",
+  },
+  {
+    id: 131,
+    scholar: "Al-Tabari",
+    fullName: "Jami' Al-Bayan",
+    language: "Arabic",
+    langCode: "ar",
+    flag: "🇸🇦",
+    description: "Earliest comprehensive tafseer",
+    era: "9th century",
+  },
+  {
+    id: 74,
+    scholar: "Al-Qurtubi",
+    fullName: "Al-Jami' Li-Ahkam Al-Quran",
+    language: "Arabic",
+    langCode: "ar",
+    flag: "🇸🇦",
+    description: "Jurisprudence-focused tafseer",
+    era: "13th century",
+  },
+];
+
+export const AI_TAFSEER_LANGUAGES = [
+  { code: "English", label: "English", flag: "🇬🇧" },
+  { code: "Arabic", label: "Arabic", flag: "🇸🇦" },
+  { code: "Urdu", label: "Urdu", flag: "🇵🇰" },
+  { code: "French", label: "French", flag: "🇫🇷" },
+  { code: "Turkish", label: "Turkish", flag: "🇹🇷" },
+  { code: "German", label: "German", flag: "🇩🇪" },
+  { code: "Indonesian", label: "Indonesian", flag: "🇮🇩" },
+  { code: "Malay", label: "Malay", flag: "🇲🇾" },
+  { code: "Russian", label: "Russian", flag: "🇷🇺" },
+  { code: "Chinese", label: "Chinese", flag: "🇨🇳" },
+  { code: "Spanish", label: "Spanish", flag: "🇪🇸" },
+  { code: "Bengali", label: "Bengali", flag: "🇧🇩" },
+];
+
+export async function fetchScholarTafseer(
+  tafseerId: number,
+  surahId: number,
+  ayahNumber: number
+): Promise<string> {
+  try {
+    const res = await fetch(
+      `https://api.quran.com/api/v4/tafsirs/${tafseerId}/verses/by_key/${surahId}:${ayahNumber}`
+    );
+    if (!res.ok) return "";
+    const data = await res.json() as { tafsir?: { text?: string } };
+    const raw = data?.tafsir?.text ?? "";
+    return raw.replace(/<[^>]*>/g, " ").replace(/&[a-z]+;/gi, " ").replace(/\s+/g, " ").trim();
+  } catch {
+    return "";
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────────
+
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`);
   if (!res.ok) throw new Error(`AlQuran API error: ${res.status}`);

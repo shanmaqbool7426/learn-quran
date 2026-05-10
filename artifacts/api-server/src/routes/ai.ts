@@ -10,12 +10,13 @@ const openai = new OpenAI({
 
 router.post("/tafseer", async (req, res) => {
   try {
-    const { surahName, ayahNumber, arabicText, translation, surahId } = req.body as {
+    const { surahName, ayahNumber, arabicText, translation, surahId, language = "English" } = req.body as {
       surahName: string;
       ayahNumber: number;
       arabicText: string;
       translation: string;
       surahId: number;
+      language?: string;
     };
 
     if (!arabicText) {
@@ -31,9 +32,10 @@ router.post("/tafseer", async (req, res) => {
           role: "system",
           content: `You are a knowledgeable Islamic scholar specializing in Quran tafseer (exegesis). 
 Provide insightful, accurate tafseer explanations that are educational and spiritually enriching.
-Keep responses concise but comprehensive - around 150-200 words.
+Keep responses concise but comprehensive — around 150-200 words.
 Include: 1) Core meaning/theme, 2) Historical/revelation context if relevant, 3) Key lessons for Muslims today.
-Be respectful and scholarly in tone.`,
+Be respectful and scholarly in tone.
+IMPORTANT: Respond entirely in ${language}. If ${language} is not English, still use proper Islamic terms.`,
         },
         {
           role: "user",
@@ -44,7 +46,7 @@ Ayah: ${ayahNumber}
 Arabic: ${arabicText}
 Translation: ${translation}
 
-Please explain the meaning, context, and key lessons from this verse.`,
+Please explain the meaning, context, and key lessons from this verse. Respond in ${language}.`,
         },
       ],
     });
